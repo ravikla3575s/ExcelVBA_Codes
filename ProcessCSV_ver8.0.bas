@@ -9,6 +9,7 @@ Sub ProcessCSV()
     Dim csvFolder As String            ' CSVフォルダパス
     Dim fso As Object                  ' FileSystemObject
     Dim targetYear As String, targetMonth As String  ' 処理対象の診療年・月（西暦）
+    Dim treatmentYear as integer , treatmentMonth as integer
     Dim savePath As String            ' 報告書保存先フォルダ
     Dim templatePath As String        ' 報告書テンプレートファイル(.xltm)パス
     Dim reportWb As Workbook          ' 報告書Excelブック
