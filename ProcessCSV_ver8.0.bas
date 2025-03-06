@@ -20,8 +20,6 @@ Sub ProcessCSV()
     Dim fixfFile As String, sheetName As String
     Dim i As Long
 
-    ' ... (前略: フォルダ選択やテンプレートパス取得などの処理) ...
-
     ' 1. CSVフォルダをユーザーに選択させる
     csvFolder = SelectCSVFolder()
     If csvFolder = "" Then Exit Sub  ' ユーザーがキャンセルした場合
