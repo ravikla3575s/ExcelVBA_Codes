@@ -1,5 +1,3 @@
-Option Explicit
-
 ' グローバル変数（ユーザーフォーム管理用）
 Dim gRebillForm As Object          ' 動的に作成した返戻再請求選択フォーム
 Dim gUnclaimedForm As Object       ' 動的に作成した未請求レセプト選択フォーム
@@ -9,7 +7,54 @@ Dim gRebillData As Object          ' ユーザー選択結果：返戻再請求�
 Dim gLateData As Object            ' ユーザー選択結果：月遅れ請求に分類するデータ
 Dim gSelectedUnclaimed As Object   ' ユーザー選択結果：前月未請求から追加するデータ
 
-' **請求CSV一括処理マクロ:** 
+Sub SetTemplateAndSavePath()
+    Dim ws As Worksheet
+    Dim templatePath As String
+    Dim saveFolder As String
+    Dim storeName As String
+
+    ' シートを指定（必要に応じて変更）
+    Set ws = ThisWorkbook.Sheets(1)
+
+    ' B1: 店舗名をユーザーに入力させる
+    storeName = InputBox("店舗名を入力してください", "店舗名の設定")
+    If storeName = "" Then
+        MsgBox "店舗名が入力されていません。処理を中止します。", vbExclamation
+        Exit Sub
+    End If
+    ws.Range("B1").Value = storeName
+
+    ' B2: テンプレート保存フォルダを選択
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "テンプレート保存フォルダを選択してください"
+        If .Show = -1 Then
+            templatePath = .SelectedItems(1)
+        Else
+            MsgBox "テンプレート保存フォルダが選択されていません。処理を中止します。", vbExclamation
+            Exit Sub
+        End If
+    End With
+    ws.Range("B2").Value = templatePath
+
+    ' B3: 新規ファイルの保存フォルダを選択
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "新規ファイルの保存フォルダを選択してください"
+        If .Show = -1 Then
+            saveFolder = .SelectedItems(1)
+        Else
+            MsgBox "新規ファイルの保存フォルダが選択されていません。処理を中止します。", vbExclamation
+            Exit Sub
+        End If
+    End With
+    ws.Range("B3").Value = saveFolder
+
+    ' 設定完了メッセージ
+    MsgBox "設定が完了しました。" & vbCrLf & _
+           "店舗名: " & storeName & vbCrLf & _
+           "テンプレート保存先: " & templatePath & vbCrLf & _
+           "新規ファイル保存先: " & saveFolder, vbInformation
+End Sub
+' **請求CSV一括処理マクロ:**
 ' 指定フォルダ内の請求確定CSV(`fixf`)および各種明細CSV(`fmei`:振込額明細, `henr`:返戻内訳, `zogn`:増減点連絡)を読み込み、
 ' 月次の「保険請求管理報告書」Excelを作成・更新します。
 ' 処理後、報告書Excel（名称: 保険請求管理報告書_RYYMM.xlsx）が指定フォルダに出力されます。
@@ -184,7 +229,7 @@ Sub ProcessCsv()
                 GoTo NextFixf
             End If
             Application.DisplayAlerts = False
-            newWb.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            newWb.SaveAs fileName:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
             Application.DisplayAlerts = True
             newWb.Close False
         End If
@@ -219,11 +264,9 @@ Sub ProcessCsv()
         ' 最初の行はヘッダ行とみなす
         Dim header_skipped As Boolean: header_skipped = False
         For i = LBound(lines) To UBound(lines)
-            If Trim(lines(i)) = "" Then Continue For
             If Not header_skipped Then
                 header_skipped = True
-                Continue For  ' ヘッダ行をスキップ
-            End If
+                            End If
             If Left(lines(i), 2) = "1," Then
                 data_lines_cat1.Add lines(i)
             ElseIf Left(lines(i), 2) = "2," Then
@@ -234,7 +277,7 @@ Sub ProcessCsv()
         Next i
         ' データ出力のヘルパーサブルーチン（指定シートにヘッダ＋指定行集合を書き込む）
         Dim key As Variant
-        Sub WriteDataToSheet(ws As Worksheet, dataCol As Collection)
+        Function WriteDataToSheet(ws As Worksheet, dataCol As Collection)
             ws.Cells.Clear
             ' ヘッダ行を書き込み
             Dim j As Long: j = 1
@@ -256,7 +299,7 @@ Sub ProcessCsv()
                 Next key
                 rowIndex = rowIndex + 1
             Next j
-        End Sub
+        End Function
         ' 1ページあたり最大行数（必要に応じて調整）
         Dim maxLinesPerSheet As Long: maxLinesPerSheet = 40
 
@@ -341,7 +384,7 @@ NextFixf:
                 GoTo NextFmei
             End If
             Application.DisplayAlerts = False
-            newWb2.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            newWb2.SaveAs fileName:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
             Application.DisplayAlerts = True
             newWb2.Close False
         End If
@@ -412,7 +455,7 @@ NextFmei:
                 GoTo NextHenr
             End If
             Application.DisplayAlerts = False
-            newWb3.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            newWb3.SaveAs fileName:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
             Application.DisplayAlerts = True
             newWb3.Close False
         End If
@@ -477,7 +520,7 @@ NextHenr:
                 GoTo NextZogn
             End If
             Application.DisplayAlerts = False
-            newWb4.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            newWb4.SaveAs fileName:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
             Application.DisplayAlerts = True
             newWb4.Close False
         End If
@@ -515,7 +558,7 @@ NextZogn:
     ' 10. 完了メッセージ
     MsgBox "CSVファイルの処理が完了しました！", vbInformation, "完了"
 
-End Sub
+End Function
 
 Sub ProcessWithoutFixf(file_system As Object, csv_folder As String, save_path As String, template_path As String)
     Dim invoice_year As String, invoice_month As String
@@ -789,7 +832,7 @@ Function FindOrCreateReport(save_path As String, invoice_year As String, invoice
             Exit Function
         End If
         Application.DisplayAlerts = False
-        newWb.SaveAs Filename:=reportPath, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+        newWb.SaveAs fileName:=reportPath, FileFormat:=xlOpenXMLWorkbookMacroEnabled
         Application.DisplayAlerts = True
         newWb.Close False
     End If
@@ -1014,7 +1057,7 @@ Sub TransferBillingDetails(report_workbook As Workbook, csvFileName As String)
     Set assessment_dict = CreateObject("Scripting.Dictionary") ' 返戻・査定（返戻・減点で未収）
 
     ' 6. メインシート（請求データ）の最終行を取得（D列に値がある最後の行）
-    last_row_main = main_sheet.Cells(main_sheet.Rows.Count, "D").End(xlUp).Row
+    last_row_main = main_sheet.Cells(main_sheet.Rows.Count, "D").End(xlUp).row
 
     ' 7. メインシートの各レコードを走査し、当月ではないデータを各カテゴリに振り分け
     For i = 2 To last_row_main
@@ -1196,7 +1239,7 @@ Function GetStartRow(ws As Worksheet, categoryName As String) As Long
     Dim foundCell As Range
     Set foundCell = ws.Cells.Find(what:=categoryName, LookAt:=xlWhole)
     If Not foundCell Is Nothing Then
-        GetStartRow = foundCell.Row
+        GetStartRow = foundCell.row
     Else
         GetStartRow = 0
     End If
@@ -1299,7 +1342,7 @@ Sub InvestigateHalfYearDiscrepancy()
             If Not header_cell Is Nothing Then
                 colClaim = header_cell.Column
                 Dim last_row As Long
-                last_row = wsMain.Cells(wsMain.Rows.Count, colClaim).End(xlUp).Row
+                last_row = wsMain.Cells(wsMain.Rows.Count, colClaim).End(xlUp).row
                 If last_row >= 2 Then
                     total_points_claim = Application.WorksheetFunction.Sum(wsMain.Range(wsMain.Cells(2, colClaim), wsMain.Cells(last_row, colClaim)))
                 End If
@@ -1324,7 +1367,7 @@ Sub InvestigateHalfYearDiscrepancy()
                 For col = 1 To deposit_sheet.UsedRange.Columns.Count
                     If InStr(deposit_sheet.Cells(1, col).Value, "決定点数") > 0 Then
                         Dim last_row_dep As Long
-                        last_row_dep = deposit_sheet.Cells(deposit_sheet.Rows.Count, col).End(xlUp).Row
+                        last_row_dep = deposit_sheet.Cells(deposit_sheet.Rows.Count, col).End(xlUp).row
                         If last_row_dep >= 2 Then
                             total_points_decided = total_points_decided + Application.WorksheetFunction.Sum(deposit_sheet.Range(deposit_sheet.Cells(2, col), deposit_sheet.Cells(last_row_dep, col)))
                         End If
