@@ -1,534 +1,924 @@
 Option Explicit
 
-' グローバル変数（ユーザーフォーム管理用）
-Public gRebillForm As Object          ' 動的に作成した返戻再請求選択フォーム
-Public gUnclaimedForm As Object       ' 動的に作成した未請求レセプト選択フォーム
-Public gOlderList As Object           ' 過去レセプトデータ一覧（返戻再請求/月遅れ選択用）
-Public gUnclaimedList As Object       ' 前月未請求データ一覧（未請求レセプト選択用）
-Public gRebillData As Object          ' ユーザー選択結果：返戻再請求に分類するデータ
-Public gLateData As Object            ' ユーザー選択結果：月遅れ請求に分類するデータ
-Public gSelectedUnclaimed As Object   ' ユーザー選択結果：前月未請求から追加するデータ
+' **請求CSV一括処理マクロ:** 
+' 指定フォルダ内の請求確定CSV(`fixf`)および各種明細CSV(`fmei`:振込額明細, `henr`:返戻内訳, `zogn`:増減点連絡)を読み込み、
+' 月次の「保険請求管理報告書」Excelを作成・更新します。
+' 処理後、報告書Excel（名称: 保険請求管理報告書_RYYMM.xlsx）が指定フォルダに出力されます。
 
-Sub ProcessCSV()
-    Dim csvFolder As String
-    Dim fso As Object
-    Dim targetYear As String
-    Dim targetMonth As String
-    Dim savePath As String
-    Dim templatePath As String
-    Dim newBook As Workbook
-    Dim targetFile As String
-    Dim fixfFile As String
-    Dim fixfFiles As Object
-    Dim file As Object
+Sub ProcessCsv()
+    Dim csv_folder As String            ' CSVフォルダパス
+    Dim file_system As Object          ' FileSystemObject
+    Dim invoice_year As String, invoice_month As String  ' 処理対象の請求年・月（西暦）
+    Dim dispensing_year As Integer, dispensing_month As Integer
+    Dim save_path As String            ' 報告書保存先フォルダ
+    Dim template_path As String        ' 報告書テンプレートファイル(.xltm)パス
+    Dim report_workbook As Workbook    ' 報告書Excelブック
+    Dim fixf_files As Collection, fmei_files As Collection, henr_files As Collection, zogn_files As Collection
+    Dim csv_file As Object
+    Dim report_file_path As String, report_file_name As String
+    Dim era_letter As String, year_code As String, month_code As String
+    Dim fixf_file_path As String, sheet_name As String
+    Dim i As Long
+
+    ' ... (前略: フォルダ選択やテンプレートパス取得などの処理) ...
 
     ' 1. CSVフォルダをユーザーに選択させる
-    csvFolder = SelectCSVFolder()
-    If csvFolder = "" Then Exit Sub
+    csv_folder = SelectCsvFolder()
+    If csv_folder = "" Then Exit Sub  ' ユーザーがキャンセルした場合
 
     ' 1.1 フォルダが空なら処理を中止
-    If IsFolderEmpty(csvFolder) Then
+    If IsFolderEmpty(csv_folder) Then
         MsgBox "選択したフォルダにはCSVファイルがありません。処理を中止します。", vbExclamation, "エラー"
         Exit Sub
     End If
 
-    ' 2. テンプレートパス・保存フォルダ取得
-    templatePath = GetTemplatePath()
-    savePath = GetSavePath()
-    If templatePath = "" Or savePath = "" Then Exit Sub
+    ' 2. テンプレートパス・保存先フォルダを取得
+    template_path = GetTemplatePath()    ' 設定シートのB2セル（テンプレート格納先）
+    save_path = GetSavePath()           ' 設定シートのB3セル（保存先フォルダ）
+    If template_path = "" Or save_path = "" Then Exit Sub  ' 必須パスが取得できなければ中止
 
-    ' 3. ファイルシステムオブジェクトの作成
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    ' 3. FileSystemObjectの用意
+    Set file_system = CreateObject("Scripting.FileSystemObject")
 
-    ' 4. フォルダ内のすべての「fixf」ファイルを取得
-    Set fixfFiles = FindAllFixfFiles(fso, csvFolder)
-
-    ' 5. fixfファイルがない場合は通常のCSV処理に切り替え
-    If fixfFiles Is Nothing Or fixfFiles.Count = 0 Then
-        ProcessWithoutFixf fso, csvFolder, savePath, templatePath
-        Exit Sub
-    End If
-
-    ' 6. 各fixfファイルに対して処理を実行
-    For Each fixfFile In fixfFiles
-        ' 6.1 対象年月を取得（ファイル名や内容から推定）
-        targetYear = "": targetMonth = ""
-        GetYearMonthFromFixf fixfFile, targetYear, targetMonth
-        If targetYear = "" Or targetMonth = "" Then
-            MsgBox "fixfファイルから診療年月を取得できませんでした。", vbExclamation, "エラー"
-            Exit Sub
-        End If
-
-        ' 6.2 対象Excelファイルを準備（既存報告書があれば開く、なければテンプレートから新規作成）
-        targetFile = FindOrCreateReport(savePath, targetYear, targetMonth, templatePath)
-        If targetFile = "" Then Exit Sub
-        Set newBook = Workbooks.Open(targetFile)
-
-        ' 6.3 帳票ブックに基本情報を設定
-        SetTemplateInfo newBook, targetYear, targetMonth
-
-        ' 6.4 CSVファイルを順次読み込み
-        ProcessAllCSVFiles fso, newBook, csvFolder
-
-        ' 6.5 帳票ブックを保存して閉じる
-        newBook.Save
-        newBook.Close False
-        MsgBox "[" & fixfFile.Name & "] のデータ転記完了", vbInformation, "完了"
-    Next fixfFile
-
-    MsgBox "全てのfixfファイル処理完了！", vbInformation, "完了"
-End Sub
-
-Sub ProcessWithoutFixf(fso As Object, csvFolder As String, savePath As String, templatePath As String)
-    Dim targetYear As String, targetMonth As String
-    Dim targetFile As String, newBook As Workbook
-
-    ' 対象年月をCSV内容から取得
-    targetYear = "": targetMonth = ""
-    GetYearMonthFromCSV fso, csvFolder, targetYear, targetMonth
-    If targetYear = "" Or targetMonth = "" Then
-        MsgBox "CSVファイルから診療年月を取得できませんでした。", vbExclamation, "エラー"
-        Exit Sub
-    End If
-
-    ' 対象Excelファイルが既に存在する場合はスキップ
-    Dim csvYYMM As String, reportName As String, fsoLocal As Object
-    Set fsoLocal = CreateObject("Scripting.FileSystemObject")
-    csvYYMM = Format(CInt(targetYear) - 2018, "00") & targetMonth
-    reportName = "保険請求管理報告書_R" & csvYYMM & ".xlsx"
-    If fsoLocal.FileExists(savePath & "\" & reportName) Then
-        MsgBox "既に対象年月の報告書ファイルが存在します: " & reportName, vbInformation, "処理スキップ"
-        Exit Sub
-    End If
-
-    ' 新規報告書ブックを作成
-    targetFile = FindOrCreateReport(savePath, targetYear, targetMonth, templatePath)
-    If targetFile = "" Then Exit Sub
-    Set newBook = Workbooks.Open(targetFile)
-    SetTemplateInfo newBook, targetYear, targetMonth
-    ProcessAllCSVFiles fso, newBook, csvFolder
-    newBook.Save
-    newBook.Close False
-    MsgBox "CSVデータの転記が完了しました。", vbInformation, "完了"
-End Sub
-
-Sub SetTemplateInfo(newBook As Workbook, targetYear As String, targetMonth As String, Optional skipSheet1Info As Boolean = False)
-    Dim wsTemplate As Worksheet, wsTemplate2 As Worksheet
-    Dim receiptYear As Integer, receiptMonth As Integer
-    Dim sendMonth As Integer, sendDate As String
-
-    ' シート取得（テンプレートはシート1=帳票A, シート2=帳票B想定）
-    Set wsTemplate = newBook.Sheets(1)
-    Set wsTemplate2 = newBook.Sheets(2)
-    ' シート名変更（シート1を "R{令和YY}.{M}", シート2を丸数字の月に変更）
-    receiptYear = CInt(targetYear)
-    receiptMonth = CInt(targetMonth)
-    wsTemplate.Name = "R" & Format(receiptYear - 2018, "0") & "." & Format(receiptMonth, "0")
-    wsTemplate2.Name = ConvertToCircledNumber(receiptMonth)
-
-    ' 情報転記（シート1のヘッダー情報設定）
-    If Not skipSheet1Info Then
-        wsTemplate.Range("G2").Value = targetYear & "年" & Format(receiptMonth, "00") & "月調剤分"
-        sendMonth = receiptMonth + 1
-        sendDate = Format(sendMonth, "00") & "月10日"
-        wsTemplate.Range("I2").Value = "提出日: " & targetYear & "年" & sendDate
-    End If
-End Sub
-
-Sub ProcessAllCSVFiles(fso As Object, newBook As Workbook, csvFolder As String)
-    Dim csvFile As Object
-    Dim fileType As String
-    Dim wsDetails As Worksheet
-    Dim wsCSV As Worksheet
-    Dim sheetName As String
-    Dim sheetIndex As Integer
-
-    ' シート2（詳細データ用）を取得
-    Set wsDetails = newBook.Sheets(2)
-
-    ' 1. 各CSVの処理
-    For Each csvFile In fso.GetFolder(csvFolder).Files
-        If InStr(csvFile.Name, "fmei") > 0 Then
-            ' 振込額明細書CSV
-            Set wsCSV = newBook.Sheets.Add(After:=newBook.Sheets(newBook.Sheets.Count))
-            wsCSV.Name = "振込額明細書"
-            ImportCSVData csvFile.Path, wsCSV, "振込額明細書"
-        ElseIf InStr(csvFile.Name, "zogn") > 0 Then
-            ' 増減点連絡書CSV
-            Set wsCSV = newBook.Sheets.Add(After:=newBook.Sheets(newBook.Sheets.Count))
-            wsCSV.Name = "増減点連絡書"
-            ImportCSVData csvFile.Path, wsCSV, "増減点連絡書"
-        ElseIf InStr(csvFile.Name, "henr") > 0 Then
-            ' 返戻内訳書CSV
-            Set wsCSV = newBook.Sheets.Add(After:=newBook.Sheets(newBook.Sheets.Count))
-            wsCSV.Name = "返戻内訳書"
-            ImportCSVData csvFile.Path, wsCSV, "返戻内訳書"
-        ElseIf InStr(csvFile.Name, "fixf") > 0 Then
-            ' 請求確定CSV（fixf）
-            ImportCSVData csvFile.Path, newBook.Sheets(1), "fixf"
-            sheetName = csvFile.Name
-        End If
-    Next csvFile
-
-    ' 2. 返戻再請求・月遅れ請求データの詳細転記
-    If sheetName <> "" Then
-        Call TransferBillingDetails(newBook, sheetName, csvFile.Name)
-    End If
-End Sub
-
-Sub TransferBillingDetails(newBook As Workbook, sheetName As String, csvFileName As String)
-    Dim wsBilling As Worksheet, wsDetails As Worksheet, wsCSV As Worksheet
-    Dim lastRowBilling As Long, lastRowDetails As Long
-    Dim i As Long, j As Long
-    Dim dispensingMonth As String, convertedMonth As String
-    Dim payerCode As String, payerType As String
-    Dim startRowDict As Object
-    Dim rebillDict As Object, lateDict As Object, unpaidDict As Object, assessmentDict As Object
-    Dim rowData As Variant
-    Dim a As Long, b As Long, c As Long
-
-    ' シート設定（請求データシートと詳細シート）
-    Set wsBilling = newBook.Sheets(1)
-    Set wsDetails = newBook.Sheets(2)
-
-    ' 診療年月（YYMM形式）を取得
-    Dim csvYYMM As String
-    If wsBilling.Range("G2").Value <> "" Then
-        csvYYMM = Right(CStr(wsBilling.Range("G2").Value), 4)
-        ' G2には "YYYY年MM月調剤分" 形式で入っているため、数値部分を抽出
-        If InStr(csvYYMM, "年") > 0 Or InStr(csvYYMM, "月") > 0 Then
-            csvYYMM = Replace(Replace(csvYYMM, "年", ""), "月", "")
-        End If
-    Else
-        csvYYMM = ""
-    End If
-
-    ' CSVファイル名から請求先区分を判別
-    payerCode = Mid(sheetName, 7, 1)
-    Select Case payerCode
-        Case "1": payerType = "社保"
-        Case "2": payerType = "国保"
-        Case Else: payerType = "労災"
-    End Select
-
-    ' 開始行位置の辞書を作成（シート2の各カテゴリ見出し行を取得）
-    Set startRowDict = CreateObject("Scripting.Dictionary")
-    startRowDict.Add "返戻再請求", GetStartRow(wsDetails, payerType & "返戻再請求")
-    startRowDict.Add "月遅れ請求", GetStartRow(wsDetails, payerType & "月遅れ請求")
-    startRowDict.Add "未請求扱い", GetStartRow(wsDetails, payerType & "未請求扱い")
-    startRowDict.Add "返戻・査定", GetStartRow(wsDetails, payerType & "返戻・査定")
-
-    ' Mainシート上の全行を走査し、過去月データを収集
-    lastRowBilling = wsBilling.Cells(wsBilling.Rows.Count, 1).End(xlUp).Row
-    Set gOlderList = Nothing
-    For i = 2 To lastRowBilling
-        dispensingMonth = Trim(CStr(wsBilling.Cells(i, 3).Value))
-        If dispensingMonth = "" Then GoTo ContinueLoop
-        If IsNumeric(Left(dispensingMonth, 1)) Then
-            ' Eraコードがない場合は令和(5)を補完
-            dispensingMonth = "5" & dispensingMonth
-        End If
-        convertedMonth = ConvertToWesternDate(dispensingMonth)
-        ' 判定：過去月かどうか
-        Dim itemYYMM As Integer
-        itemYYMM = 0
-        If convertedMonth <> "" Then
-            itemYYMM = CInt(Replace(convertedMonth, ".", ""))
-        End If
-        If itemYYMM <> 0 And csvYYMM <> "" Then
-            If itemYYMM < CInt(csvYYMM) Then
-                ' 過去月データをリスト収集
-                rowData = Array(wsBilling.Cells(i, 2).Value, convertedMonth, wsBilling.Cells(i, 5).Value, wsBilling.Cells(i, 14).Value)
-                If gOlderList Is Nothing Then Set gOlderList = CreateObject("Scripting.Dictionary")
-                Dim keyStr As String
-                keyStr = CStr(wsBilling.Cells(i, 2).Value) & "_" & CStr(i)
-                If Not gOlderList.Exists(keyStr) Then gOlderList.Add keyStr, rowData
+    ' 4. フォルダ内の全CSVファイルを種類別に収集（fixf, fmei, henr, zogn）
+    Set file_system = CreateObject("Scripting.FileSystemObject")
+    Set fixf_files = New Collection: Set fmei_files = New Collection
+    Set henr_files = New Collection: Set zogn_files = New Collection
+    For Each csv_file In file_system.GetFolder(csv_folder).Files
+        If LCase(file_system.GetExtensionName(csv_file.Name)) = "csv" Then
+            If InStr(LCase(csv_file.Name), "fixf") > 0 Then
+                fixf_files.Add csv_file
+            ElseIf InStr(LCase(csv_file.Name), "fmei") > 0 Then
+                fmei_files.Add csv_file
+            ElseIf InStr(LCase(csv_file.Name), "henr") > 0 Then
+                henr_files.Add csv_file
+            ElseIf InStr(LCase(csv_file.Name), "zogn") > 0 Then
+                zogn_files.Add csv_file
             End If
         End If
-ContinueLoop:
-    Next i
+    Next csv_file
 
-    ' ユーザーフォーム表示による返戻再請求選択
-    If Not gOlderList Is Nothing And gOlderList.Count > 0 Then
-        ShowRebillSelectionForm
+    ' 4.1 対象CSVファイルが一つもない場合、処理を中止
+    If fixf_files.Count = 0 And fmei_files.Count = 0 And henr_files.Count = 0 And zogn_files.Count = 0 Then
+        MsgBox "選択したフォルダには処理対象のCSVファイルがありません。処理を中止します。", vbExclamation, "エラー"
+        Exit Sub
     End If
 
-    ' 選択結果（または空）のディクショナリを準備
-    Set rebillDict = CreateObject("Scripting.Dictionary")
-    Set lateDict = CreateObject("Scripting.Dictionary")
-    If Not gRebillData Is Nothing Then Set rebillDict = gRebillData
-    If Not gLateData Is Nothing Then Set lateDict = gLateData
-    ' フォーム未使用や全未選択の場合、全件を月遅れ扱いにする
-    If Not gOlderList Is Nothing And gOlderList.Count > 0 And rebillDict.Count = 0 Then
-        Dim k As Variant
-        For Each k In gOlderList.Keys
-            If Not lateDict.Exists(k) Then lateDict.Add k, gOlderList(k)
-        Next k
-    End If
-
-    ' 返戻内訳書シート（査定データ）の収集
-    Set assessmentDict = CreateObject("Scripting.Dictionary")
-    On Error Resume Next
-    Set wsCSV = newBook.Sheets("返戻内訳書")
-    On Error GoTo 0
-    If Not wsCSV Is Nothing Then
-        lastRowDetails = wsCSV.Cells(wsCSV.Rows.Count, 2).End(xlUp).Row
-        For j = 2 To lastRowDetails
-            If Trim(wsCSV.Cells(j, 2).Value) <> "" Then
-                dispensingMonth = Trim(CStr(wsCSV.Cells(j, 2).Value))
-                If IsNumeric(Left(dispensingMonth, 1)) Then
-                    dispensingMonth = "5" & dispensingMonth  ' Eraコード補完
+    ' 5. 収集したCSVファイルを調剤年月が古い順にソート
+    If fixf_files.Count > 1 Then
+        For i = 1 To fixf_files.Count - 1
+            For j = i + 1 To fixf_files.Count
+                Dim year_1 As String, month_1 As String
+                Dim year_2 As String, month_2 As String
+                year_1 = "": month_1 = ""
+                year_2 = "": month_2 = ""
+                GetYearMonthFromFixf fixf_files(i).Path, year_1, month_1
+                GetYearMonthFromFixf fixf_files(j).Path, year_2, month_2
+                If year_1 <> "" And month_1 <> "" And year_2 <> "" And month_2 <> "" Then
+                    If (year_1 & month_1) > (year_2 & month_2) Then
+                        Set temp_obj = fixf_files(i)
+                        Set fixf_files(i) = fixf_files(j)
+                        Set fixf_files(j) = temp_obj
+                    End If
                 End If
-                convertedMonth = ConvertToWesternDate(dispensingMonth)
-                rowData = Array(wsCSV.Cells(j, 3).Value, convertedMonth, wsCSV.Cells(j, 9).Value, wsCSV.Cells(j, 14).Value)
-                assessmentDict.Add CStr(wsCSV.Cells(j, 3).Value) & "_" & j, rowData
+            Next j
+        Next i
+    End If
+    If fmei_files.Count > 1 Then
+        For i = 1 To fmei_files.Count - 1
+            For j = i + 1 To fmei_files.Count
+                Dim code_1 As String, code_2 As String
+                code_1 = Right(file_system.GetBaseName(fmei_files(i).Name), 5)
+                code_2 = Right(file_system.GetBaseName(fmei_files(j).Name), 5)
+                If Len(code_1) = 5 And Len(code_2) = 5 And IsNumeric(code_1) And IsNumeric(code_2) Then
+                    If CDbl(code_1) > CDbl(code_2) Then
+                        Set temp_obj = fmei_files(i)
+                        Set fmei_files(i) = fmei_files(j)
+                        Set fmei_files(j) = temp_obj
+                    End If
+                End If
+            Next j
+        Next i
+    End If
+    If henr_files.Count > 1 Then
+        For i = 1 To henr_files.Count - 1
+            For j = i + 1 To henr_files.Count
+                code_1 = Right(file_system.GetBaseName(henr_files(i).Name), 5)
+                code_2 = Right(file_system.GetBaseName(henr_files(j).Name), 5)
+                If Len(code_1) = 5 And Len(code_2) = 5 And IsNumeric(code_1) And IsNumeric(code_2) Then
+                    If CDbl(code_1) > CDbl(code_2) Then
+                        Set temp_obj = henr_files(i)
+                        Set henr_files(i) = henr_files(j)
+                        Set henr_files(j) = temp_obj
+                    End If
+                End If
+            Next j
+        Next i
+    End If
+    If zogn_files.Count > 1 Then
+        For i = 1 To zogn_files.Count - 1
+            For j = i + 1 To zogn_files.Count
+                code_1 = Right(file_system.GetBaseName(zogn_files(i).Name), 5)
+                code_2 = Right(file_system.GetBaseName(zogn_files(j).Name), 5)
+                If Len(code_1) = 5 And Len(code_2) = 5 And IsNumeric(code_1) And IsNumeric(code_2) Then
+                    If CDbl(code_1) > CDbl(code_2) Then
+                        Set temp_obj = zogn_files(i)
+                        Set zogn_files(i) = zogn_files(j)
+                        Set zogn_files(j) = temp_obj
+                    End If
+                End If
+            Next j
+        Next i
+    End If
+
+    ' 6. 請求確定CSV（fixf）の処理
+    For Each csv_file In fixf_files
+        Dim treatmentYear_shadow As Integer, treatmentMonth_shadow As Integer  ' ※一時的に使用（スコープ内で再宣言）
+        treatmentYear_shadow = "": treatmentMonth_shadow = ""
+        fixf_file_path = csv_file.Path
+        invoice_year = "": invoice_month = ""
+        GetYearMonthFromFixf fixf_file_path, invoice_year, invoice_month  ' fixfファイルから調剤年月を取得
+        If invoice_year = "" Or invoice_month = "" Then
+            MsgBox "ファイル " & fixf_file_path & " から調剤年月を取得できませんでした。", vbExclamation, "エラー"
+            GoTo NextFixf
+        End If
+        ' 請求年月の1ヶ月前を調剤年月とする（月を1減算）
+        treatmentMonth_shadow = invoice_month - 1
+        If treatmentMonth_shadow = 0 Then
+            treatmentYear_shadow = invoice_year - 1
+            treatmentMonth_shadow = 12
+        End If
+        ' 出力報告書ファイル名（調剤年月RYYMM形式）を決定
+        If CInt(treatmentYear_shadow) >= 2019 Then
+            era_letter = "R": year_code = Format(CInt(treatmentYear_shadow) - 2018, "00")  ' 令和
+        ElseIf CInt(treatmentYear_shadow) >= 1989 Then
+            era_letter = "H": year_code = Format(CInt(treatmentYear_shadow) - 1988, "00")  ' 平成
+        ElseIf CInt(treatmentYear_shadow) >= 1926 Then
+            era_letter = "S": year_code = Format(CInt(treatmentYear_shadow) - 1925, "00")  ' 昭和
+        ElseIf CInt(treatmentYear_shadow) >= 1912 Then
+            era_letter = "T": year_code = Format(CInt(treatmentYear_shadow) - 1911, "00")  ' 大正
+        Else
+            era_letter = "M": year_code = Format(CInt(treatmentYear_shadow) - 1867, "00")  ' 明治
+        End If
+        report_file_name = "保険請求管理報告書_" & era_letter & year_code & Format(CInt(treatmentMonth_shadow), "00") & ".xlsm"
+        report_file_path = save_path & "\" & report_file_name
+        ' **既存の報告書ファイルがある場合、重複処理を避けてスキップ**
+        If file_system.FileExists(report_file_path) Then
+            GoTo NextFixf
+        End If
+        ' 報告書ブックを取得（存在しなければテンプレートから新規作成）
+        If Not file_system.FileExists(report_file_path) Then
+            Dim newWb As Workbook
+            Set newWb = Workbooks.Add(template_path)
+            If newWb Is Nothing Then
+                MsgBox "テンプレートファイルを開けませんでした: " & template_path, vbExclamation, "エラー"
+                GoTo NextFixf
             End If
-        Next j
-    End If
+            Application.DisplayAlerts = False
+            newWb.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            Application.DisplayAlerts = True
+            newWb.Close False
+        End If
+        On Error Resume Next
+        Set report_workbook = Workbooks.Open(report_file_path)
+        On Error GoTo 0
+        If report_workbook Is Nothing Then
+            MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
+            GoTo NextFixf
+        End If
+        ' テンプレート情報を設定（調剤年月等を更新）
+        SetTemplateInfo report_workbook, invoice_year, invoice_month
 
-    ' 前月未請求データの追加選択
-    Dim addDict As Object
-    Set addDict = AddUnclaimedRecords(payerType, Mid(targetYear, Len(targetYear) - 1), Format(CInt(targetMonth), "0"))
-    If Not addDict Is Nothing Then
-        For Each k In addDict.Keys
-            If Not lateDict.Exists(k) Then lateDict.Add k, addDict(k)
-        Next k
-    End If
+        ' fixf CSVデータをシート3～6に転記（シートがなければ作成）
+        Dim neededSheets As Integer: neededSheets = 6
+        If report_workbook.Sheets.Count < neededSheets Then
+            For i = report_workbook.Sheets.Count + 1 To neededSheets
+                report_workbook.Sheets.Add After:=report_workbook.Sheets(report_workbook.Sheets.Count)
+            Next i
+        End If
+        ' 対象シート3～6をクリア
+        For i = 3 To 6
+            If i <= report_workbook.Sheets.Count Then report_workbook.Sheets(i).Cells.Clear
+        Next i
+        ' fixf CSVファイルを読み込み、カテゴリ別にデータ行を振り分け
+        Dim ts As Object, lineText As String, lines() As String
+        Set ts = file_system.OpenTextFile(fixf_file_path, 1, False, -2)  ' UTF-8で読み込み
+        lineText = ts.ReadAll: ts.Close
+        lines = Split(lineText, vbCrLf)
+        Dim column_map As Object: Set column_map = GetColumnMapping("請求確定状況")
+        Dim data_lines_cat1 As New Collection, data_lines_cat2 As New Collection
+        ' 最初の行はヘッダ行とみなす
+        Dim header_skipped As Boolean: header_skipped = False
+        For i = LBound(lines) To UBound(lines)
+            If Trim(lines(i)) = "" Then Continue For
+            If Not header_skipped Then
+                header_skipped = True
+                Continue For  ' ヘッダ行をスキップ
+            End If
+            If Left(lines(i), 2) = "1," Then
+                data_lines_cat1.Add lines(i)
+            ElseIf Left(lines(i), 2) = "2," Then
+                data_lines_cat2.Add lines(i)
+            Else
+                ' 想定外の行は無視
+            End If
+        Next i
+        ' データ出力のヘルパーサブルーチン（指定シートにヘッダ＋指定行集合を書き込む）
+        Dim key As Variant
+        Sub WriteDataToSheet(ws As Worksheet, dataCol As Collection)
+            ws.Cells.Clear
+            ' ヘッダ行を書き込み
+            Dim j As Long: j = 1
+            For Each key In column_map.Keys
+                ws.Cells(1, j).Value = column_map(key)
+                j = j + 1
+            Next key
+            ' データ行を書き込み
+            Dim rowIndex As Long: rowIndex = 2
+            Dim arr As Variant
+            For j = 1 To dataCol.Count
+                arr = Split(dataCol(j), ",")
+                Dim k As Long: k = 1
+                For Each key In column_map.Keys
+                    If key - 1 <= UBound(arr) Then
+                        ws.Cells(rowIndex, k).Value = Trim(arr(key - 1))
+                    End If
+                    k = k + 1
+                Next key
+                rowIndex = rowIndex + 1
+            Next j
+        End Sub
+        ' 1ページあたり最大行数（必要に応じて調整）
+        Dim maxLinesPerSheet As Long: maxLinesPerSheet = 40
 
-    ' 各カテゴリの追加行数を計算（各カテゴリ4行を超える分）
-    a = 0: b = 0: c = 0
-    If rebillDict.Count > 4 Then a = rebillDict.Count - 4
-    If lateDict.Count > 4 Then b = lateDict.Count - 4
-    If assessmentDict.Count > 4 Then c = assessmentDict.Count - 4
+        ' カテゴリ1（社保）データの転記
+        If data_lines_cat1.Count > 0 Then
+            If data_lines_cat1.Count <= maxLinesPerSheet Then
+                WriteDataToSheet report_workbook.Sheets(3), data_lines_cat1
+            Else
+                ' 1ページに収まらない場合、Sheet3とSheet4に分割
+                Dim temp_collection_1 As New Collection
+                For i = 1 To maxLinesPerSheet
+                    temp_collection_1.Add data_lines_cat1(i)
+                Next i
+                WriteDataToSheet report_workbook.Sheets(3), temp_collection_1
+                temp_collection_1.Remove 1 To temp_collection_1.Count  ' コレクションをクリア
+                For i = maxLinesPerSheet + 1 To data_lines_cat1.Count
+                    temp_collection_1.Add data_lines_cat1(i)
+                Next i
+                WriteDataToSheet report_workbook.Sheets(4), temp_collection_1
+            End If
+        End If
+        ' カテゴリ2（国保）データの転記
+        If data_lines_cat2.Count > 0 Then
+            Dim start_sheet As Integer
+            start_sheet = IIf(data_lines_cat1.Count > 0, 5, 3)  ' 社保ありならSheet5開始、なければSheet3開始
+            If data_lines_cat2.Count <= maxLinesPerSheet Then
+                WriteDataToSheet report_workbook.Sheets(start_sheet), data_lines_cat2
+            Else
+                ' 2ページに分割
+                Dim temp_collection_2 As New Collection
+                For i = 1 To maxLinesPerSheet
+                    temp_collection_2.Add data_lines_cat2(i)
+                Next i
+                WriteDataToSheet report_workbook.Sheets(start_sheet), temp_collection_2
+                temp_collection_2.Remove 1 To temp_collection_2.Count
+                For i = maxLinesPerSheet + 1 To data_lines_cat2.Count
+                    temp_collection_2.Add data_lines_cat2(i)
+                Next i
+                ' 次のシート（カテゴリ開始シートの+1）に続き出力
+                WriteDataToSheet report_workbook.Sheets(start_sheet + 1), temp_collection_2
+            End If
+        End If
 
-    ' シートに行挿入（各カテゴリ枠の拡張）
-    If a > 0 Then wsDetails.Rows(startRowDict("返戻再請求") + 4).Resize(a).Insert Shift:=xlDown
-    If b > 0 Then wsDetails.Rows(startRowDict("月遅れ請求") + 4).Resize(b).Insert Shift:=xlDown
-    If c > 0 Then wsDetails.Rows(startRowDict("返戻・査定") + 4).Resize(c).Insert Shift:=xlDown
+        ' ブックを保存して閉じる
+        report_workbook.Save
+        report_workbook.Close False
+NextFixf:
+        ' 次のfixfファイルへ
+    Next csv_file
 
-    ' データ転記（各カテゴリセクションに書き込み）
-    TransferData rebillDict, wsDetails, startRowDict("返戻再請求") + 1, payerType
-    TransferData lateDict, wsDetails, startRowDict("月遅れ請求") + 1, payerType
-    TransferData assessmentDict, wsDetails, startRowDict("返戻・査定") + 1, payerType
-    ' 未請求扱いカテゴリは必要時のみ（基本未使用）
-    If Not unpaidDict Is Nothing And unpaidDict.Count > 0 Then
-        TransferData unpaidDict, wsDetails, startRowDict("未請求扱い") + 1, payerType
-    End If
+    ' 7. 振込額明細CSV（fmei）の処理
+    For Each csv_file In fmei_files
+        invoice_year = "": invoice_month = ""
+        ' ファイル名から調剤年月コードを取得
+        Dim ym_code As String
+        ym_code = GetDispensingYearMonthFromFileName(csv_file.Name)
+        If ym_code = "" Then
+            MsgBox "ファイル " & csv_file.Name & " から調剤年月を取得できませんでした。", vbExclamation, "エラー"
+            GoTo NextFmei
+        End If
+        ' 調剤年月（西暦）を算出
+        era_letter = Left(ym_code, 1)
+        year_code = Mid(ym_code, 2, 2)
+        month_code = Right(ym_code, 2)
+        Select Case era_letter
+            Case "R": invoice_year = CStr(2018 + CInt(year_code))   ' 令和
+            Case "H": invoice_year = CStr(1988 + CInt(year_code))   ' 平成
+            Case "S": invoice_year = CStr(1925 + CInt(year_code))   ' 昭和
+            Case "T": invoice_year = CStr(1911 + CInt(year_code))   ' 大正
+            Case "M": invoice_year = CStr(1867 + CInt(year_code))   ' 明治
+            Case Else: invoice_year = CStr(2000 + CInt(year_code))  ' 仮（不明コード）
+        End Select
+        invoice_month = month_code
+        ' 報告書ファイル名を決定（存在しなければ作成）
+        report_file_name = "保険請求管理報告書_" & ym_code & ".xlsm"
+        report_file_path = save_path & "\" & report_file_name
+        If Not file_system.FileExists(report_file_path) Then
+            Dim newWb2 As Workbook
+            Set newWb2 = Workbooks.Add(template_path)
+            If newWb2 Is Nothing Then
+                MsgBox "テンプレートファイルを開けませんでした: " & template_path, vbExclamation, "エラー"
+                GoTo NextFmei
+            End If
+            Application.DisplayAlerts = False
+            newWb2.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            Application.DisplayAlerts = True
+            newWb2.Close False
+        End If
+        On Error Resume Next
+        Set report_workbook = Workbooks.Open(report_file_path)
+        On Error GoTo 0
+        If report_workbook Is Nothing Then
+            MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
+            GoTo NextFmei
+        End If
+        ' 既に同じファイル名のシートが存在する場合はスキップ
+        sheet_name = file_system.GetBaseName(csv_file.Name)
+        Dim sheet As Worksheet, sheetExists As Boolean: sheetExists = False
+        For Each sheet In report_workbook.Sheets
+            If InStr(sheet.Name, sheet_name) > 0 Then
+                sheetExists = True
+                Exit For
+            End If
+        Next sheet
+        If sheetExists Then
+            report_workbook.Close False
+            GoTo NextFmei
+        End If
+        ' テンプレート情報を設定
+        SetTemplateInfo report_workbook, invoice_year, invoice_month
+        ' CSVデータを新規シートにインポート
+        Dim insertIndex As Long
+        insertIndex = Application.WorksheetFunction.Min(3, report_workbook.Sheets.Count + 1)
+        Dim csv_sheet As Worksheet
+        Set csv_sheet = report_workbook.Sheets.Add(After:=report_workbook.Sheets(insertIndex - 1))
+        csv_sheet.Name = sheet_name
+        ImportCsvData csv_file.Path, csv_sheet, "振込額明細書"
+        TransferBillingDetails report_workbook, csv_file.Name  ' 振込額明細の詳細転記処理
+
+        report_workbook.Save
+        report_workbook.Close False
+NextFmei:
+        ' 次のfmeiファイルへ
+    Next csv_file
+
+    ' 8. 返戻内訳CSV（henr）の処理
+    For Each csv_file In henr_files
+        invoice_year = "": invoice_month = ""
+        ym_code = GetDispensingYearMonthFromFileName(csv_file.Name)
+        If ym_code = "" Then
+            MsgBox "ファイル " & csv_file.Name & " から調剤年月を取得できませんでした。", vbExclamation, "エラー"
+            GoTo NextHenr
+        End If
+        era_letter = Left(ym_code, 1)
+        year_code = Mid(ym_code, 2, 2)
+        month_code = Right(ym_code, 2)
+        Select Case era_letter
+            Case "R": invoice_year = CStr(2018 + CInt(year_code))
+            Case "H": invoice_year = CStr(1988 + CInt(year_code))
+            Case "S": invoice_year = CStr(1925 + CInt(year_code))
+            Case "T": invoice_year = CStr(1911 + CInt(year_code))
+            Case "M": invoice_year = CStr(1867 + CInt(year_code))
+            Case Else: invoice_year = CStr(2000 + CInt(year_code))
+        End Select
+        invoice_month = month_code
+        report_file_name = "保険請求管理報告書_" & ym_code & ".xlsm"
+        report_file_path = save_path & "\" & report_file_name
+        If Not file_system.FileExists(report_file_path) Then
+            Dim newWb3 As Workbook
+            Set newWb3 = Workbooks.Add(template_path)
+            If newWb3 Is Nothing Then
+                MsgBox "テンプレートファイルを開けませんでした: " & template_path, vbExclamation, "エラー"
+                GoTo NextHenr
+            End If
+            Application.DisplayAlerts = False
+            newWb3.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            Application.DisplayAlerts = True
+            newWb3.Close False
+        End If
+        On Error Resume Next
+        Set report_workbook = Workbooks.Open(report_file_path)
+        On Error GoTo 0
+        If report_workbook Is Nothing Then
+            MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
+            GoTo NextHenr
+        End If
+        sheet_name = file_system.GetBaseName(csv_file.Name)
+        sheetExists = False
+        For Each sheet In report_workbook.Sheets
+            If InStr(sheet.Name, sheet_name) > 0 Then
+                sheetExists = True: Exit For
+            End If
+        Next sheet
+        If sheetExists Then
+            report_workbook.Close False
+            GoTo NextHenr
+        End If
+        SetTemplateInfo report_workbook, invoice_year, invoice_month
+        insertIndex = Application.WorksheetFunction.Min(3, report_workbook.Sheets.Count + 1)
+        Set csv_sheet = report_workbook.Sheets.Add(After:=report_workbook.Sheets(insertIndex - 1))
+        csv_sheet.Name = sheet_name
+        ImportCsvData csv_file.Path, csv_sheet, "返戻内訳書"
+        TransferBillingDetails report_workbook, csv_file.Name  ' 返戻内訳の詳細転記処理
+
+        report_workbook.Save
+        report_workbook.Close False
+NextHenr:
+        ' 次のhenrファイルへ
+    Next csv_file
+
+    ' 9. 増減点連絡CSV（zogn）の処理
+    For Each csv_file In zogn_files
+        invoice_year = "": invoice_month = ""
+        ym_code = GetDispensingYearMonthFromFileName(csv_file.Name)
+        If ym_code = "" Then
+            MsgBox "ファイル " & csv_file.Name & " から調剤年月を取得できませんでした。", vbExclamation, "エラー"
+            GoTo NextZogn
+        End If
+        era_letter = Left(ym_code, 1)
+        year_code = Mid(ym_code, 2, 2)
+        month_code = Right(ym_code, 2)
+        Select Case era_letter
+            Case "R": invoice_year = CStr(2018 + CInt(year_code))
+            Case "H": invoice_year = CStr(1988 + CInt(year_code))
+            Case "S": invoice_year = CStr(1925 + CInt(year_code))
+            Case "T": invoice_year = CStr(1911 + CInt(year_code))
+            Case "M": invoice_year = CStr(1867 + CInt(year_code))
+            Case Else: invoice_year = CStr(2000 + CInt(year_code))
+        End Select
+        invoice_month = month_code
+        report_file_name = "保険請求管理報告書_" & ym_code & ".xlsm"
+        report_file_path = save_path & "\" & report_file_name
+        If Not file_system.FileExists(report_file_path) Then
+            Dim newWb4 As Workbook
+            Set newWb4 = Workbooks.Add(template_path)
+            If newWb4 Is Nothing Then
+                MsgBox "テンプレートファイルを開けませんでした: " & template_path, vbExclamation, "エラー"
+                GoTo NextZogn
+            End If
+            Application.DisplayAlerts = False
+            newWb4.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+            Application.DisplayAlerts = True
+            newWb4.Close False
+        End If
+        On Error Resume Next
+        Set report_workbook = Workbooks.Open(report_file_path)
+        On Error GoTo 0
+        If report_workbook Is Nothing Then
+            MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
+            GoTo NextZogn
+        End If
+        sheet_name = file_system.GetBaseName(csv_file.Name)
+        sheetExists = False
+        For Each sheet In report_workbook.Sheets
+            If InStr(sheet.Name, sheet_name) > 0 Then
+                sheetExists = True: Exit For
+            End If
+        Next sheet
+        If sheetExists Then
+            report_workbook.Close False
+            GoTo NextZogn
+        End If
+        SetTemplateInfo report_workbook, invoice_year, invoice_month
+        insertIndex = Application.WorksheetFunction.Min(3, report_workbook.Sheets.Count + 1)
+        Set csv_sheet = report_workbook.Sheets.Add(After:=report_workbook.Sheets(insertIndex - 1))
+        csv_sheet.Name = sheet_name
+        ImportCsvData csv_file.Path, csv_sheet, "増減点連絡書"
+        TransferBillingDetails report_workbook, csv_file.Name  ' 増減点連絡の詳細転記処理
+
+        report_workbook.Save
+        report_workbook.Close False
+NextZogn:
+        ' 次のzognファイルへ
+    Next csv_file
+
+    ' 10. 完了メッセージ
+    MsgBox "CSVファイルの処理が完了しました！", vbInformation, "完了"
+
 End Sub
 
-Function SelectCSVFolder() As String
+Sub ProcessWithoutFixf(file_system As Object, csv_folder As String, save_path As String, template_path As String)
+    Dim invoice_year As String, invoice_month As String
+    Dim reportFile As String
+    Dim report_workbook As Workbook
+
+    ' 1. フォルダ内の最初のCSVから調剤年月を推定（fmei等の先頭行GYYMMコードを利用）
+    invoice_year = ""
+    invoice_month = ""
+    ' fixfファイルがなく報告書ファイルも存在しない場合、fmeiファイル名から調剤年月を推定
+    Dim fmeiFile As Object
+    For Each fmeiFile In file_system.GetFolder(csv_folder).Files
+        If LCase(file_system.GetExtensionName(fmeiFile.Name)) = "csv" And InStr(LCase(fmeiFile.Name), "fmei") > 0 Then
+            ' 最初に見つかったfmeiファイルを使用
+            Dim codePart As String, era_code As String, year_code As String, month_code As String
+            Dim westernYear As Integer
+            codePart = Right(file_system.GetBaseName(fmeiFile.Name), 5)
+            If Len(codePart) = 5 And IsNumeric(codePart) Then
+                era_code = Left(codePart, 1)
+                year_code = Mid(codePart, 2, 2)
+                month_code = Right(codePart, 2)
+                Select Case era_code
+                    Case "5": westernYear = 2018 + CInt(year_code)   ' 令和
+                    Case "4": westernYear = 1988 + CInt(year_code)   ' 平成
+                    Case "3": westernYear = 1925 + CInt(year_code)   ' 昭和
+                    Case "2": westernYear = 1911 + CInt(year_code)   ' 大正
+                    Case "1": westernYear = 1867 + CInt(year_code)   ' 明治
+                    Case Else: westernYear = 2000 + CInt(year_code)  ' 仮定
+                End Select
+                invoice_year = CStr(westernYear)
+                invoice_month = month_code
+            End If
+            Exit For
+        End If
+    Next fmeiFile
+    ' ファイル名から取得できなかった場合、CSV内容から調剤年月を取得
+    If invoice_year = "" Or invoice_month = "" Then
+        GetYearMonthFromCSV file_system, csv_folder, invoice_year, invoice_month
+    End If
+    ' **調剤年月が取得できなかった場合は処理中止**
+    If invoice_year = "" Or invoice_month = "" Then
+        MsgBox "CSVファイルから調剤年月を取得できませんでした。", vbExclamation, "エラー"
+        Exit Sub
+    End If
+
+    ' 2. 報告書Excelファイルを取得（既存がなければ新規作成）
+    reportFile = FindOrCreateReport(save_path, invoice_year, invoice_month, template_path)
+    If reportFile = "" Then
+        MsgBox "調剤年月 " & invoice_year & "年" & invoice_month & "月 のExcelファイルを作成できませんでした。", vbExclamation, "エラー"
+        Exit Sub
+    End If
+
+    ' 3. 報告書Excelを開く
+    On Error Resume Next
+    Set report_workbook = Workbooks.Open(reportFile)
+    On Error GoTo 0
+    If report_workbook Is Nothing Then
+        MsgBox "ファイル " & reportFile & " を開けませんでした。", vbExclamation, "エラー"
+        Exit Sub
+    End If
+
+    ' 4. テンプレート情報を設定（タイトル等）
+    SetTemplateInfo report_workbook, invoice_year, invoice_month
+
+    ' 5. CSVファイルを種類別に処理（fixfなしなので、振込明細・返戻・増減点のみ）
+    ProcessAllCsvFiles file_system, report_workbook, csv_folder, invoice_year, invoice_month
+
+    ' 6. 保存してブックを閉じる
+    report_workbook.Save
+    report_workbook.Close False
+
+    ' 7. 完了メッセージ
+    MsgBox "CSVファイルの処理が完了しました！", vbInformation, "完了"
+End Sub
+
+Sub ProcessAllCsvFiles(file_system As Object, report_workbook As Workbook, csv_folder As String, invoice_year As String, invoice_month As String)
+    Dim era_code As String, eraYear As Integer
+    Dim GYYMM As String          ' 和暦元号コード付の対象年月 (例:50702)
+    Dim csvFileObj As Object
+    ' 受け取りCSVの種類別コレクションを用意
+    Dim fmei_files As New Collection, henr_files As New Collection, zogn_files As New Collection
+
+    ' 対象年月を和暦GYYMM形式に変換（例: 2025年02月→令和7年=07 ⇒ "50702"）
+    If CInt(invoice_year) >= 2019 Then
+        era_code = "5"  ' 令和
+        eraYear = CInt(invoice_year) - 2018
+    ElseIf CInt(invoice_year) >= 1989 Then
+        era_code = "4"  ' 平成
+        eraYear = CInt(invoice_year) - 1988
+    ElseIf CInt(invoice_year) >= 1926 Then
+        era_code = "3"  ' 昭和
+        eraYear = CInt(invoice_year) - 1925
+    ElseIf CInt(invoice_year) >= 1912 Then
+        era_code = "2"  ' 大正
+        eraYear = CInt(invoice_year) - 1911
+    Else
+        era_code = "1"  ' 明治（想定外の場合）
+        eraYear = CInt(invoice_year) - 1867
+    End If
+    GYYMM = era_code & Format(eraYear, "00") & invoice_month   ' 例: "50702"
+
+    ' フォルダ内の全CSVファイルを走査し、ファイル名により種類別に振り分け
+    For Each csvFileObj In file_system.GetFolder(csv_folder).Files
+        If LCase(file_system.GetExtensionName(csvFileObj.Name)) = "csv" Then
+            Dim base_name As String
+            base_name = file_system.GetBaseName(csvFileObj.Name)
+            ' ファイル名に種別キーワードを含み、かつ末尾のYYMMコードが対象年月かチェック
+            If InStr(LCase(base_name), "fmei") > 0 And Right(base_name, Len(GYYMM)) = GYYMM Then
+                fmei_files.Add csvFileObj    ' 振込額明細書CSVを収集
+            ElseIf InStr(LCase(base_name), "henr") > 0 And Right(base_name, Len(GYYMM)) = GYYMM Then
+                henr_files.Add csvFileObj    ' 返戻内訳書CSVを収集
+            ElseIf InStr(LCase(base_name), "zogn") > 0 And Right(base_name, Len(GYYMM)) = GYYMM Then
+                zogn_files.Add csvFileObj    ' 増減点連絡書CSVを収集
+            End If
+        End If
+    Next csvFileObj
+
+    ' 1) 振込額明細書（fmei）CSVの処理
+    ProcessFmeiFiles file_system, report_workbook, fmei_files
+
+    ' 2) 返戻内訳書（henr）CSVの処理
+    ProcessHenrFiles file_system, report_workbook, henr_files
+
+    ' 3) 増減点連絡書（zogn）CSVの処理
+    ProcessZognFiles file_system, report_workbook, zogn_files
+End Sub
+
+Function ConvertToCircledNumber(month As Integer) As String
+    Dim circledNumbers As Variant
+    circledNumbers = Array("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫")
+
+    ' **1～12月の範囲内なら変換、範囲外ならそのまま返す**
+    If month >= 1 And month <= 12 Then
+        ConvertToCircledNumber = circledNumbers(month - 1)
+    Else
+        ConvertToCircledNumber = CStr(month)  ' 予期しない値ならそのまま
+    End If
+End Function
+
+Sub ProcessFmeiFiles(file_system As Object, report_workbook As Workbook, fmei_files As Collection)
+    Dim csvFileObj As Object, csv_sheet As Worksheet
+    Dim sheet_name As String, insertIndex As Integer
+
+    For Each csvFileObj In fmei_files
+        ' 新しいシートを追加し、一意なシート名を設定（既存重複回避）
+        sheet_name = file_system.GetBaseName(csvFileObj.Name)
+        sheet_name = GetUniqueSheetName(report_workbook, sheet_name)
+        insertIndex = Application.WorksheetFunction.Min(3, report_workbook.Sheets.Count + 1)
+        Set csv_sheet = report_workbook.Sheets.Add(After:=report_workbook.Sheets(insertIndex - 1))
+        csv_sheet.Name = sheet_name
+
+        ' CSVデータをインポートし転記（列マッピングは"振込額明細書"定義を使用）
+        ImportCsvData csvFileObj.Path, csv_sheet, "振込額明細書"
+        ' 当該データの詳細分類転記（過去月入金＝返戻再請求の検出等）
+        TransferBillingDetails report_workbook, csvFileObj.Name
+    Next csvFileObj
+End Sub
+
+Sub ProcessHenrFiles(file_system As Object, report_workbook As Workbook, henr_files As Collection)
+    Dim csvFileObj As Object, csv_sheet As Worksheet
+    Dim sheet_name As String, insertIndex As Integer
+
+    For Each csvFileObj In henr_files
+        sheet_name = file_system.GetBaseName(csvFileObj.Name)
+        sheet_name = GetUniqueSheetName(report_workbook, sheet_name)
+        insertIndex = Application.WorksheetFunction.Min(3, report_workbook.Sheets.Count + 1)
+        Set csv_sheet = report_workbook.Sheets.Add(After:=report_workbook.Sheets(insertIndex - 1))
+        csv_sheet.Name = sheet_name
+
+        ImportCsvData csvFileObj.Path, csv_sheet, "返戻内訳書"
+        ' 返戻データ（過去未収＝返戻・査定）の詳細シート反映
+        TransferBillingDetails report_workbook, csvFileObj.Name
+    Next csvFileObj
+End Sub
+
+Sub ProcessZognFiles(file_system As Object, report_workbook As Workbook, zogn_files As Collection)
+    Dim csvFileObj As Object, csv_sheet As Worksheet
+    Dim sheet_name As String, insertIndex As Integer
+
+    For Each csvFileObj In zogn_files
+        sheet_name = file_system.GetBaseName(csvFileObj.Name)
+        sheet_name = GetUniqueSheetName(report_workbook, sheet_name)
+        insertIndex = Application.WorksheetFunction.Min(3, report_workbook.Sheets.Count + 1)
+        Set csv_sheet = report_workbook.Sheets.Add(After:=report_workbook.Sheets(insertIndex - 1))
+        csv_sheet.Name = sheet_name
+
+        ImportCsvData csvFileObj.Path, csv_sheet, "増減点連絡書"
+        ' 減点（未請求扱い）データの詳細シート反映
+        TransferBillingDetails report_workbook, csvFileObj.Name
+    Next csvFileObj
+End Sub
+
+Function SelectCsvFolder() As String
     With Application.FileDialog(msoFileDialogFolderPicker)
         .Title = "CSVフォルダを選択してください"
-        .AllowMultiSelect = False
         If .Show = -1 Then
-            SelectCSVFolder = .SelectedItems(1)
+            SelectCsvFolder = .SelectedItems(1) & "\"
         Else
-            SelectCSVFolder = ""
+            MsgBox "フォルダが選択されませんでした。処理を中止します。", vbExclamation, "エラー"
+            SelectCsvFolder = ""
         End If
     End With
 End Function
 
 Function IsFolderEmpty(folderPath As String) As Boolean
-    Dim fso As Object
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    If fso.GetFolder(folderPath).Files.Count = 0 And fso.GetFolder(folderPath).SubFolders.Count = 0 Then
+    Dim file_system_local As Object, folderObj As Object
+    Set file_system_local = CreateObject("Scripting.FileSystemObject")
+    If Not file_system_local.FolderExists(folderPath) Then
         IsFolderEmpty = True
+        Exit Function
+    End If
+    Set folderObj = file_system_local.GetFolder(folderPath)
+    If folderObj.Files.Count = 0 Then
+        IsFolderEmpty = True   ' ファイルが一つもない
     Else
-        IsFolderEmpty = False
+        IsFolderEmpty = False  ' ファイルが存在する
     End If
 End Function
 
 Function GetTemplatePath() As String
-    ' テンプレートパス取得（ここでは固定値 or 別シートから取得する想定）
-    On Error Resume Next
-    GetTemplatePath = ThisWorkbook.Sheets("Settings").Range("B1").Value
-    On Error GoTo 0
+    GetTemplatePath = ThisWorkbook.Sheets(1).Range("B2").Value & "\保険請求管理報告書テンプレート20250222.xltm"
 End Function
 
 Function GetSavePath() As String
-    ' 保存先フォルダパス取得（ここでは固定値 or 別シートから取得する想定）
-    On Error Resume Next
-    GetSavePath = ThisWorkbook.Sheets("Settings").Range("B2").Value
-    On Error GoTo 0
+    GetSavePath = ThisWorkbook.Sheets(1).Range("B3").Value
 End Function
 
-Function FindAllFixfFiles(fso As Object, csvFolder As String) As Collection
-    Dim fixfFiles As New Collection
-    Dim file As Object
-    For Each file In fso.GetFolder(csvFolder).Files
-        If InStr(file.Name, "fixf") > 0 Then
-            fixfFiles.Add file
+Function FindAllFixfFiles(file_system As Object, csv_folder As String) As Collection
+    Dim csv_file As Object
+    Dim fixf_files_local As New Collection
+    ' フォルダ内の全ファイルから名前に`fixf`を含むCSVを収集
+    For Each csv_file In file_system.GetFolder(csv_folder).Files
+        If LCase(file_system.GetExtensionName(csv_file.Name)) = "csv" And InStr(LCase(csv_file.Name), "fixf") > 0 Then
+            fixf_files_local.Add csv_file
         End If
-    Next file
-    If fixfFiles.Count = 0 Then
-        Set FindAllFixfFiles = Nothing
-    Else
-        Set FindAllFixfFiles = fixfFiles
-    End If
+    Next csv_file
+    Set FindAllFixfFiles = fixf_files_local
 End Function
 
-Sub GetYearMonthFromFixf(fixfFile As String, ByRef targetYear As String, ByRef targetMonth As String)
-    Dim fso As Object, fileName As String, nameNoExt As String
-    Dim code As String, yrCode As String, monCode As String
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    fileName = fso.GetFileName(fixfFile)
-    nameNoExt = fso.GetBaseName(fileName)
-    code = ""
-    ' ファイル名から GYYMM コード抽出（末尾4桁が GYYMM想定）
-    If Len(nameNoExt) >= 4 Then
-        If IsNumeric(Right(nameNoExt, 4)) Then
-            code = Right(nameNoExt, 4)
-        End If
-    End If
-    If code <> "" Then
-        yrCode = Left(code, 2)
-        monCode = Right(code, 2)
-        targetYear = CStr(2018 + CInt(yrCode))    ' 和暦年コードを西暦年に変換
-        targetMonth = CStr(CInt(monCode))         ' 月コードを整数化
+Function FindOrCreateReport(save_path As String, invoice_year As String, invoice_month As String, template_path As String) As String
+    Dim file_system_local As Object, newWb As Workbook
+    Dim reportPath As String, reportName As String
+    Dim csvYYMM As String, era_code As String, eraYear As Integer
+    Set file_system_local = CreateObject("Scripting.FileSystemObject")
+    ' RYYMM形式のファイル名を生成
+    If CInt(invoice_year) >= 2019 Then
+        era_code = "5"  ' 令和
+        eraYear = CInt(invoice_year) - 2018
+    ElseIf CInt(invoice_year) >= 1989 Then
+        era_code = "4"  ' 平成
+        eraYear = CInt(invoice_year) - 1988
+    ElseIf CInt(invoice_year) >= 1926 Then
+        era_code = "3"  ' 昭和
+        eraYear = CInt(invoice_year) - 1925
+    ElseIf CInt(invoice_year) >= 1912 Then
+        era_code = "2"  ' 大正
+        eraYear = CInt(invoice_year) - 1911
     Else
-        ' ファイル名に無い場合、ファイル内容先頭から診療年月推定
-        Dim ts As Object, lineText As String
+        era_code = "1"  ' 明治
+        eraYear = CInt(invoice_year) - 1867
+    End If
+    csvYYMM = era_code & Format(eraYear, "00") & invoice_month  ' RYYMM文字列
+    reportName = "保険請求管理報告書_" & csvYYMM & ".xlsm"
+    reportPath = save_path & "\" & reportName
+    If Not file_system_local.FileExists(reportPath) Then
         On Error Resume Next
-        Set ts = fso.OpenTextFile(fixfFile, 1, False, -2)
+        Set newWb = Workbooks.Add(template_path)
         On Error GoTo 0
-        If Not ts Is Nothing Then
-            ' 先頭数行を読み診療年月を含む行を探す
-            Dim i As Integer
-            For i = 1 To 5
-                If ts.AtEndOfStream Then Exit For
-                lineText = ts.ReadLine
-                If InStr(lineText, "G") > 0 And InStr(lineText, ",") = 0 Then
-                    ' 例: "5XXXX" 形式の文字列を含む場合
-                    Dim matchStr As Variant
-                    matchStr = Replace(lineText, """", "")
-                    If Len(matchStr) >= 4 And IsNumeric(matchStr) Then
-                        yrCode = Left(matchStr, 2)
-                        monCode = Right(matchStr, 2)
-                        targetYear = CStr(2018 + CInt(yrCode))
-                        targetMonth = CStr(CInt(monCode))
-                        Exit For
-                    End If
-                End If
-            Next i
-            ts.Close
+        If newWb Is Nothing Then
+            FindOrCreateReport = ""
+            Exit Function
         End If
-        ' 取得失敗時、ユーザーに入力を促す
-        If targetYear = "" Or targetMonth = "" Then
-            MsgBox "診療年月を自動取得できませんでした。指定してください。", vbExclamation, "確認"
-            targetYear = InputBox("西暦年を入力してください（例: 2023）:", "診療年")
-            targetMonth = InputBox("月を入力してください（1~12）:", "診療月")
-            If targetYear = "" Or targetMonth = "" Then
-                Exit Sub
-            End If
-        End If
+        Application.DisplayAlerts = False
+        newWb.SaveAs Filename:=reportPath, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+        Application.DisplayAlerts = True
+        newWb.Close False
     End If
+    If file_system_local.FileExists(reportPath) Then
+        FindOrCreateReport = reportPath
+    Else
+        FindOrCreateReport = ""  ' 作成に失敗した場合
+    End If
+End Function
+
+Sub SetTemplateInfo(newBook As Workbook, invoice_year As String, invoice_month As String)
+    Dim sheet_a As Worksheet, sheet_b As Worksheet
+    Dim receiptYear As Integer, receiptMonth As Integer
+    Dim treatmentMonth_shadow As Integer, treatmentYear_shadow As Integer, send_date As String
+
+    ' **西暦年と調剤月の計算**
+    receiptYear = CInt(invoice_year)
+    receiptMonth = CInt(invoice_month)
+
+    ' **請求月の計算**
+    treatmentMonth_shadow = receiptMonth - 1
+    If treatmentMonth_shadow <= 0 Then
+        treatmentYear_shadow = receiptYear - 1
+        treatmentMonth_shadow = 12
+    End If
+    send_date = receiptMonth & "月10日請求分"
+
+    ' **シートA, Bを取得**
+    Set sheet_a = newBook.Sheets("A")
+    Set sheet_b = newBook.Sheets("B")
+
+    ' **シート名変更**
+    sheet_a.Name = "R" & (treatmentYear_shadow - 2018) & "." & treatmentMonth_shadow
+    sheet_b.Name = ConvertToCircledNumber(treatmentMonth_shadow)
+
+    ' **情報転記**
+    sheet_a.Range("G2").Value = treatmentYear_shadow & "年" & treatmentMonth_shadow & "月調剤分"
+    sheet_a.Range("I2").Value = send_date
+    sheet_a.Range("J2").Value = ThisWorkbook.Sheets("設定").Range("B1").Value
+    sheet_b.Range("H1").Value = treatmentYear_shadow & "年" & treatmentMonth_shadow & "月調剤分"
+    sheet_b.Range("J1").Value = send_date
+    sheet_b.Range("L1").Value = ThisWorkbook.Sheets("設定").Range("B1").Value
 End Sub
 
-Function GetYearMonthFromCSV(fso As Object, csvFolder As String, ByRef targetYear As String, ByRef targetMonth As String)
-    ' フォルダ内の任意のCSVから診療年月を推定
-    Dim file As Object, fileName As String
-    targetYear = "": targetMonth = ""
-    For Each file In fso.GetFolder(csvFolder).Files
-        fileName = LCase(file.Name)
-        If InStr(fileName, "fmei") > 0 Or InStr(fileName, "zogn") > 0 Or InStr(fileName, "henr") > 0 Then
-            ' ファイル名から推定（例: "RYYMM" 部分を含む場合）
-            If InStr(fileName, "_r") > 0 Then
-                Dim pos As Long
-                pos = InStr(fileName, "_r") + 2
-                If Len(fileName) >= pos + 3 Then
-                    targetYear = CStr(2018 + CInt(Mid(fileName, pos, 2)))
-                    targetMonth = CStr(CInt(Mid(fileName, pos + 2, 2)))
-                    Exit Function
+Sub GetYearMonthFromFixf(fixfFilePath As String, ByRef invoice_year As String, ByRef invoice_month As String)
+    Dim fileName As String, datePart As String
+    Dim yearStr As String, monthStr As String
+    ' ファイルパスからファイル名部分を取得
+    fileName = Mid(fixfFilePath, InStrRev(fixfFilePath, "\") + 1)
+    ' ファイル名中のタイムスタンプ部分(YYYYMMDDhhmmss)を抽出 (例: "..._20250228150730.csv"から"20250228150730")
+    datePart = Mid(fileName, 18, 14)
+    If Len(datePart) < 8 Then Exit Sub
+    ' 年月に分解
+    yearStr = Left(datePart, 4)    ' "2025"
+    monthStr = Mid(datePart, 5, 2) ' "02"
+    ' 結果を戻り値にセット
+    invoice_year = yearStr
+    invoice_month = monthStr
+End Sub
+
+Sub GetYearMonthFromCSV(file_system As Object, csv_folder As String, ByRef invoice_year As String, ByRef invoice_month As String)
+    Dim csv_file As Object, ts As Object
+    Dim lineText As String
+    Dim era_code As String, year_code As String, month_code As String
+    Dim westernYear As Integer
+
+    ' フォルダ内のCSVファイルから先頭行のGYYMMコードを取得（対象ファイル以外はスキップ）
+    For Each csv_file In file_system.GetFolder(csv_folder).Files
+        If LCase(file_system.GetExtensionName(csv_file.Name)) = "csv" _
+           And (InStr(LCase(csv_file.Name), "fixf") > 0 _
+                Or InStr(LCase(csv_file.Name), "fmei") > 0 _
+                Or InStr(LCase(csv_file.Name), "henr") > 0 _
+                Or InStr(LCase(csv_file.Name), "zogn") > 0) Then
+            Set ts = file_system.OpenTextFile(csv_file.Path, 1, False, -2)  ' テキストストリーム (読み取り専用, UTF-8)
+            Do While Not ts.AtEndOfStream
+                lineText = ts.ReadLine
+                If Len(lineText) >= 5 Then
+                    era_code = Left(lineText, 1)        ' 元号コード (1:明治,2:大正,3:昭和,4:平成,5:令和)
+                    year_code = Mid(lineText, 2, 2)     ' 元号年（2桁）
+                    month_code = Right(lineText, 2)     ' 月（2桁）
+                    ' 元号コード＋年を西暦年に変換
+                    Select Case era_code
+                        Case "5": westernYear = 2018 + CInt(year_code)   ' 令和 (2019=令和元年)
+                        Case "4": westernYear = 1988 + CInt(year_code)   ' 平成 (1989=平成元年)
+                        Case "3": westernYear = 1925 + CInt(year_code)   ' 昭和 (1926=昭和元年)
+                        Case "2": westernYear = 1911 + CInt(year_code)   ' 大正 (1912=大正元年)
+                        Case "1": westernYear = 1867 + CInt(year_code)   ' 明治 (1868=明治元年)
+                        Case Else: westernYear = 2000 + CInt(year_code)  ' 仮定
+                    End Select
+                    invoice_year = CStr(westernYear)
+                    invoice_month = month_code
+                    Exit Do   ' 必要な情報取得できたのでループ終了
                 End If
-            End If
+            Loop
+            ts.Close
+            If invoice_year <> "" And invoice_month <> "" Then Exit For
         End If
-    Next file
-    ' 推定失敗時、ユーザー入力要求
-    If targetYear = "" Or targetMonth = "" Then
-        targetYear = InputBox("西暦年を入力してください（例: 2023）:", "診療年")
-        targetMonth = InputBox("月を入力してください（1~12）:", "診療月")
-    End If
-End Function
+    Next csv_file
+End Sub
 
-Function FindOrCreateReport(savePath As String, targetYear As String, targetMonth As String, templatePath As String) As String
-    Dim fso As Object, existingFile As Object
-    Dim fileName As String, filePath As String
-    Dim csvYYMM As String
-    csvYYMM = Format(CInt(targetYear) - 2018, "00") & Format(CInt(targetMonth), "00")  ' 和暦年+月コード
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    ' 保存フォルダ内に既存のRYYMMファイルがあるか確認
-    For Each existingFile In fso.GetFolder(savePath).Files
-        If LCase(fso.GetExtensionName(existingFile.Name)) = "xlsm" Or LCase(fso.GetExtensionName(existingFile.Name)) = "xlsx" Then
-            If InStr(existingFile.Name, "保険請求管理報告書_R" & csvYYMM) > 0 Then
-                FindOrCreateReport = existingFile.Path  ' 既存ファイルのパスを返す
-                Exit Function
-            End If
-        End If
-    Next existingFile
-    ' 新規作成
-    fileName = "保険請求管理報告書_R" & csvYYMM & ".xlsm"
-    filePath = savePath & "\" & fileName
-    ' テンプレートを元に新規ブック作成
-    On Error Resume Next
-    Dim tmplWb As Workbook
-    Set tmplWb = Workbooks.Open(templatePath)
-    On Error GoTo 0
-    If tmplWb Is Nothing Then
-        MsgBox "テンプレートを開けませんでした: " & templatePath, vbCritical, "エラー"
-        FindOrCreateReport = ""
-        Exit Function
-    End If
-    On Error Resume Next
-    tmplWb.SaveAs filePath, FileFormat:=xlOpenXMLWorkbookMacroEnabled
-    If Err.Number <> 0 Then
-        MsgBox "ファイルを保存できませんでした: " & filePath, vbCritical, "エラー"
-        FindOrCreateReport = ""
-        tmplWb.Close SaveChanges:=False
-        Exit Function
-    End If
-    On Error GoTo 0
-    tmplWb.Close SaveChanges:=True
-    FindOrCreateReport = filePath
-End Function
-
-Sub ImportCSVData(csvFile As String, ws As Worksheet, fileType As String)
-    Dim colMap As Object
-    Dim fso As Object, ts As Object
+Sub ImportCsvData(csvFilePath As String, ws As Worksheet, fileType As String)
+    Dim file_system_local As Object, ts As Object
+    Dim column_map As Object          ' 列マッピング定義（Dictionary）
     Dim lineText As String
     Dim dataArray As Variant
     Dim i As Long, j As Long, key
-    Dim isHeader As Boolean
-    On Error GoTo ErrorHandler
 
+    On Error GoTo ImportError
+    ' 画面更新と計算を一時停止（パフォーマンス向上）
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
 
-    ' 項目マッピングを取得
-    Set colMap = GetColumnMapping(fileType)
-    ' シートをクリアして項目名を1行目に設定
+    ' 1. CSV項目のマッピング定義を取得（fileTypeに応じた列マッピング辞書）
+    Set column_map = GetColumnMapping(fileType)
+
+    ' 2. 対象シートをクリアし、ヘッダー行を作成
     ws.Cells.Clear
     j = 1
-    For Each key In colMap.Keys
-        ws.Cells(1, j).Value = colMap(key)
+    For Each key In column_map.Keys
+        ws.Cells(1, j).Value = column_map(key)  ' マッピング定義の値＝ヘッダ名
         j = j + 1
     Next key
 
-    ' CSVファイルをUTF-8テキストとして開く
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set ts = fso.OpenTextFile(csvFile, 1, False, -2)  ' -2: UTF-8
-
-    ' データ部分を転記
+    ' 3. CSVファイルを開いて読み込み、データ部をシートに転記
+    Set file_system_local = CreateObject("Scripting.FileSystemObject")
+    Set ts = file_system_local.OpenTextFile(csvFilePath, 1, False, -2)  ' UTF-8でテキストストリーム開く
     i = 2
-    isHeader = True
+    Dim isHeader As Boolean: isHeader = True
     Do While Not ts.AtEndOfStream
         lineText = ts.ReadLine
         dataArray = Split(lineText, ",")
         If isHeader Then
-            ' 一行目（ヘッダー行）はスキップ
+            ' 最初の行はCSVヘッダ行とみなし読み飛ばす
             isHeader = False
         Else
             j = 1
-            For Each key In colMap.Keys
+            For Each key In column_map.Keys
+                ' CSV列index=(key-1)に対応する値をセット（範囲外チェック）
                 If key - 1 <= UBound(dataArray) Then
                     ws.Cells(i, j).Value = Trim(dataArray(key - 1))
                 End If
@@ -539,389 +929,496 @@ Sub ImportCSVData(csvFile As String, ws As Worksheet, fileType As String)
     Loop
     ts.Close
 
+    ' 4. 読み込んだデータの列幅を自動調整
     ws.Cells.EntireColumn.AutoFit
 
+    ' 5. 自動計算と画面更新を再開
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
     Exit Sub
 
-ErrorHandler:
-    MsgBox "CSV読込中にエラーが発生しました: " & Err.Description, vbCritical, "エラー"
+ImportError:
+    MsgBox "CSVデータ読込中にエラーが発生しました: " & Err.Description, vbCritical, "エラー"
     If Not ts Is Nothing Then ts.Close
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
 End Sub
 
-Function GetColumnMapping(fileType As String) As Object
-    Dim colMap As Object
-    Set colMap = CreateObject("Scripting.Dictionary")
-    Select Case fileType
-        Case "振込額明細書"
-            colMap.Add 2, "振込年月"
-            colMap.Add 3, "振込金額"
-            colMap.Add 4, "振込日"
-            ' （必要な列を追加）
-        Case "増減点連絡書"
-            colMap.Add 2, "調剤年月"
-            colMap.Add 4, "受付番号"
-            colMap.Add 11, "区分"
-            colMap.Add 14, "老人減免区分"
-            colMap.Add 15, "氏名"
-            colMap.Add 21, "増減点数（金額）"
-            colMap.Add 22, "事由"
-        Case "返戻内訳書"
-            colMap.Add 2, "調剤年月(YYMM形式)"
-            colMap.Add 3, "受付番号"
-            colMap.Add 4, "保険者番号"
-            colMap.Add 7, "氏名"
-            colMap.Add 9, "請求点数"
-            colMap.Add 10, "薬剤一部負担金"
-            colMap.Add 12, "一部負担金額"
-            colMap.Add 13, "患者負担金額（公費）"
-            colMap.Add 14, "事由コード"
-        Case Else
-            ' その他（必要に応じて追加）
-            colMap.Add 1, "項目1"
+Sub TransferBillingDetails(report_workbook As Workbook, csvFileName As String)
+    Dim main_sheet As Worksheet, details_sheet As Worksheet
+    Dim last_row_main As Long, i As Long
+    Dim dispensingCode As String, dispensingYM As String
+    Dim payer_code As String, payer_type As String
+    Dim receipt_no As String
+    Dim start_row_dict As Object                  ' 各カテゴリ開始行(Dictionary)
+    Dim rebill_dict As Object, late_dict As Object, unpaid_dict As Object, assessment_dict As Object
+    Dim category As String, start_row As Long
+    Dim row_data As Variant
+    Dim rebill_extra_count As Long, late_extra_count As Long, assessment_extra_count As Long         ' 追加行数算出用
+
+    ' 1. シートオブジェクト取得
+    Set main_sheet = report_workbook.Sheets(1)    ' メインシート（請求確定状況データ）
+    Set details_sheet = report_workbook.Sheets(2) ' 詳細データシート
+
+    ' 2. 処理対象の調剤年月コード(csvYYMM)を取得（メインシートB2セルの下4桁がRYYMM）
+    Dim csvYYMM As String: csvYYMM = ""
+    If main_sheet.Cells(2, 2).Value <> "" Then
+        csvYYMM = Right(main_sheet.Cells(2, 2).Value, 4)
+    End If
+
+    ' 3. 請求先区分の判定（CSVファイル名の7文字目: "1"社保, "2"国保, その他=労災等）
+    Dim base_name As String
+    base_name = csvFileName
+    If InStr(base_name, ".") > 0 Then base_name = Left(base_name, InStrRev(base_name, ".") - 1)
+    If Len(base_name) >= 7 Then
+        payer_code = Mid(base_name, 7, 1)
+    Else
+        payer_code = ""
+    End If
+    Select Case payer_code
+        Case "1": payer_type = "社保"
+        Case "2": payer_type = "国保"
+        Case Else: payer_type = "労災"   ' 想定外のものは労災等その他扱い
     End Select
-    Set GetColumnMapping = colMap
-End Function
 
-Function GetStartRow(ws As Worksheet, category As String) As Long
-    ' 詳細シートから指定カテゴリの行番号を取得
-    Dim rng As Range
-    Set rng = ws.Cells.Find(what:=category, LookAt:=xlWhole)
-    If rng Is Nothing Then
-        MsgBox "詳細シート上でカテゴリ """ & category & """ を見つけられませんでした。", vbExclamation, "エラー"
-        GetStartRow = 0
+    ' 4. 詳細シート上の各カテゴリ開始行を取得してDictionaryに格納
+    Set start_row_dict = CreateObject("Scripting.Dictionary")
+    If payer_type = "社保" Then
+        start_row_dict.Add "返戻再請求", GetStartRow(details_sheet, "社保返戻再請求")
+        start_row_dict.Add "月遅れ請求", GetStartRow(details_sheet, "社保月遅れ請求")
+        start_row_dict.Add "返戻・査定", GetStartRow(details_sheet, "社保返戻・査定")
+        start_row_dict.Add "未請求扱い", GetStartRow(details_sheet, "社保未請求扱い")
+    ElseIf payer_type = "国保" Then
+        start_row_dict.Add "返戻再請求", GetStartRow(details_sheet, "国保返戻再請求")
+        start_row_dict.Add "月遅れ請求", GetStartRow(details_sheet, "国保月遅れ請求")
+        start_row_dict.Add "返戻・査定", GetStartRow(details_sheet, "国保返戻・査定")
+        start_row_dict.Add "未請求扱い", GetStartRow(details_sheet, "国保未請求扱い")
     Else
-        GetStartRow = rng.Row
+        ' 労災等は詳細シート対象外（処理不要）
+        Exit Sub
     End If
-End Function
 
-Sub TransferData(dataDict As Object, ws As Worksheet, startRow As Long, payerType As String)
-    Dim key As Variant, rowData As Variant
-    Dim j As Long, payerColumn As Long
-    ' Dictionaryが空なら処理しない
+    ' 5. 過去データ分類用のDictionaryを準備
+    Set rebill_dict = CreateObject("Scripting.Dictionary")     ' 返戻再請求（過去返戻分で当月入金）
+    Set late_dict = CreateObject("Scripting.Dictionary")       ' 月遅れ請求（今回請求に含めた過去月分）
+    Set unpaid_dict = CreateObject("Scripting.Dictionary")     ' 未請求扱い（請求漏れ・除外分）
+    Set assessment_dict = CreateObject("Scripting.Dictionary") ' 返戻・査定（返戻・減点で未収）
+
+    ' 6. メインシート（請求データ）の最終行を取得（D列に値がある最後の行）
+    last_row_main = main_sheet.Cells(main_sheet.Rows.Count, "D").End(xlUp).Row
+
+    ' 7. メインシートの各レコードを走査し、当月ではないデータを各カテゴリに振り分け
+    For i = 2 To last_row_main
+        dispensingCode = main_sheet.Cells(i, 2).Value            ' 元号付き調剤年月 (例: "50701")
+        dispensingYM = ConvertToWesternDate(dispensingCode)      ' YY.MM形式に変換 (例: "07.01")
+        If csvYYMM <> "" And Right(dispensingCode, 4) <> csvYYMM Then
+            ' ※対象請求月(csvYYMM)と異なる＝過去月レセプト
+            ' 転記用データ配列（患者氏名, 調剤年月(YY.MM), 医療機関名, 請求点数）を用意
+            row_data = Array(main_sheet.Cells(i, 4).Value, dispensingYM, main_sheet.Cells(i, 5).Value, main_sheet.Cells(i, 10).Value)
+            ' ファイル種別ごとに過去月データのカテゴリ振り分け
+            If InStr(LCase(csvFileName), "fixf") > 0 Then
+                ' `fixf`（請求確定）では過去月レセプトはすべて「月遅れ請求」に分類
+                late_dict(main_sheet.Cells(i, 1).Value) = row_data
+            ElseIf InStr(LCase(csvFileName), "fmei") > 0 Then
+                ' 振込明細では過去月レセプトを「返戻再請求」として分類（前月返戻→当月入金）
+                rebill_dict(main_sheet.Cells(i, 1).Value) = row_data
+            ElseIf InStr(LCase(csvFileName), "zogn") > 0 Then
+                ' 増減点連絡書では過去月レセプトを「未請求扱い」に分類（請求除外/未処理）
+                unpaid_dict(main_sheet.Cells(i, 1).Value) = row_data
+            ElseIf InStr(LCase(csvFileName), "henr") > 0 Then
+                ' 返戻内訳書では過去月レセプトを「返戻・査定」に分類（査定等で未収）
+                assessment_dict(main_sheet.Cells(i, 1).Value) = row_data
+            End If
+        End If
+    Next i
+
+    ' 8. 各カテゴリの件数超過分を算出（初期枠4件を超えた分）
+    rebill_extra_count = 0: late_extra_count = 0: assessment_extra_count = 0
+    If rebill_dict.Count > 4 Then rebill_extra_count = rebill_dict.Count - 4
+    If late_dict.Count > 4 Then late_extra_count = late_dict.Count - 4
+    If assessment_dict.Count > 4 Then assessment_extra_count = assessment_dict.Count - 4
+    ' ※未請求扱い(unpaid_dict)は今後の請求候補として枠固定（超過行挿入しない）
+
+    ' 9. 必要な追加行を各カテゴリセクションに挿入
+    If rebill_extra_count + late_extra_count + assessment_extra_count > 0 Then
+        If rebill_extra_count > 0 Then details_sheet.Rows(start_row_dict("月遅れ請求") + 1 & ":" & start_row_dict("月遅れ請求") + rebill_extra_count).Insert Shift:=xlDown
+        If late_extra_count > 0 Then details_sheet.Rows(start_row_dict("返戻・査定") + 1 & ":" & start_row_dict("返戻・査定") + late_extra_count).Insert Shift:=xlDown
+        If assessment_extra_count > 0 Then details_sheet.Rows(start_row_dict("未請求扱い") + 1 & ":" & start_row_dict("未請求扱い") + assessment_extra_count).Insert Shift:=xlDown
+    End If
+
+    ' 10. 各Dictionaryのデータを詳細シートに順次転記
+    If rebill_dict.Count > 0 Then
+        start_row = start_row_dict("返戻再請求")
+        TransferData rebill_dict, details_sheet, start_row, payer_type
+    End If
+    If late_dict.Count > 0 Then
+        start_row = start_row_dict("月遅れ請求")
+        TransferData late_dict, details_sheet, start_row, payer_type
+    End If
+    If unpaid_dict.Count > 0 Then
+        start_row = start_row_dict("未請求扱い")
+        TransferData unpaid_dict, details_sheet, start_row, payer_type
+    End If
+    If assessment_dict.Count > 0 Then
+        start_row = start_row_dict("返戻・査定")
+        TransferData assessment_dict, details_sheet, start_row, payer_type
+    End If
+
+    ' 11. 完了メッセージ（処理区分ごとに表示）
+    MsgBox payer_type & " のデータ転記が完了しました！", vbInformation, "処理完了"
+End Sub
+
+Sub TransferData(dataDict As Object, ws As Worksheet, start_row As Long, payer_type As String)
     If dataDict.Count = 0 Then Exit Sub
-    ' payerTypeに応じた転記列を決定
-    If payerType = "社保" Then
-        payerColumn = 8   ' 社保はH列に請求先マーク
-    ElseIf payerType = "国保" Then
-        payerColumn = 9   ' 国保はI列に請求先マーク
+
+    Dim key As Variant, row_data As Variant
+    Dim r As Long: r = start_row
+    Dim payer_col As Long
+
+    ' 社保はH列(8), 国保はI列(9)に種別を記載
+    If payer_type = "社保" Then
+        payer_col = 8
+    ElseIf payer_type = "国保" Then
+        payer_col = 9
     Else
-        payerColumn = 8   ' （労災等は社保列に仮設定）
+        Exit Sub  ' その他（労災等）は対象外
     End If
-    j = startRow
+
+    ' 各レコードを書き込み
     For Each key In dataDict.Keys
-        rowData = dataDict(key)
-        ws.Cells(j, 4).Value = rowData(0)    ' 患者氏名
-        ws.Cells(j, 5).Value = rowData(1)    ' 調剤年月（西暦表記）
-        ws.Cells(j, 6).Value = rowData(2)    ' 医療機関名
-        ws.Cells(j, payerColumn).Value = payerType   ' 請求先区分（社保/国保）
-        ws.Cells(j, payerColumn).Font.Bold = True
-        ws.Cells(j, 10).Value = rowData(3)   ' 請求点数
-        j = j + 1
+        row_data = dataDict(key)
+        ws.Cells(r, 4).Value = row_data(0)          ' 患者氏名
+        ws.Cells(r, 5).Value = row_data(1)          ' 調剤年月 (YY.MM形式)
+        ws.Cells(r, 6).Value = row_data(2)          ' 医療機関名
+        ws.Cells(r, payer_col).Value = payer_type   ' 請求先種別 (社保/国保)
+        ws.Cells(r, payer_col).Font.Bold = True     ' 強調表示
+        ws.Cells(r, 10).Value = row_data(3)         ' 請求点数
+        r = r + 1
     Next key
 End Sub
 
-Sub ShowRebillSelectionForm()
-    ' 過去月レセプトの一覧をユーザーに表示し、返戻再請求するものを選択してもらう
-    Dim uf As Object, listData As Object
-    Set listData = gOlderList
-    If listData Is Nothing Or listData.Count = 0 Then Exit Sub
-    ' ユーザーフォーム作成と表示
-    Set uf = CreateRebillSelectionForm(listData)
-    Set gRebillForm = uf
-    gRebillForm.Show vbModal
-    ' フォーム終了後、選択結果は gRebillData と gLateData に格納済み
-End Sub
+Function GetColumnMapping(fileType As String) As Object
+    Dim column_map As Object
+    Set column_map = CreateObject("Scripting.Dictionary")
+    Dim k As Integer
 
-Function CreateRebillSelectionForm(listData As Object) As Object
-    Dim uf As Object, listBox As Object, btnOK As Object
-    Dim i As Long, rowData As Variant
-    ' UserForm を動的に作成
-    Set uf = VBA.UserForms.Add()
-    uf.Caption = "返戻再請求の選択"
-    uf.Width = 400
-    uf.Height = 500
-    ' ListBoxを追加
-    Set listBox = uf.Controls.Add("Forms.ListBox.1", "listBox", True)
-    listBox.Left = 20
-    listBox.Top = 20
-    listBox.Width = 350
-    listBox.Height = 350
-    listBox.MultiSelect = 1  ' 複数選択可能
-    ' リストにデータを追加（調剤年月 | 患者氏名 | 医療機関名 | 点数）
-    For i = 0 To listData.Count - 1
-        rowData = listData.Items()(i)
-        listBox.AddItem rowData(1) & " | " & rowData(0) & " | " & rowData(2) & " | " & rowData(3)
-    Next i
-    ' OKボタンを追加
-    Set btnOK = uf.Controls.Add("Forms.CommandButton.1", "btnOK", True)
-    btnOK.Caption = "確定"
-    btnOK.Left = 150
-    btnOK.Top = 400
-    btnOK.Width = 100
-    btnOK.Height = 30
-    ' ボタンクリック時の処理を設定
-    btnOK.OnClick = "ProcessRebillSelection"
-    Set CreateRebillSelectionForm = uf
-End Function
+    Select Case fileType
+        Case "振込額明細書"
+            ' 支払基金からの振込額明細CSV列 → シート列見出し の対応
+            column_map.Add 2, "診療（調剤）年月"
+            column_map.Add 5, "受付番号"
+            column_map.Add 14, "氏名"
+            column_map.Add 16, "生年月日"
+            column_map.Add 22, "医療保険_請求点数"
+            column_map.Add 23, "医療保険_決定点数"
+            column_map.Add 24, "医療保険_一部負担金"
+            column_map.Add 25, "医療保険_金額"
+            ' 第1～第5公費 分の列（各10列間隔: 請求点数・決定点数・患者負担金・金額）
+            For k = 1 To 5
+                column_map.Add 33 + (k - 1) * 10, "第" & k & "公費_請求点数"
+                column_map.Add 34 + (k - 1) * 10, "第" & k & "公費_決定点数"
+                column_map.Add 35 + (k - 1) * 10, "第" & k & "公費_患者負担金"
+                column_map.Add 36 + (k - 1) * 10, "第" & k & "公費_金額"
+            Next k
+            column_map.Add 82, "算定額合計"
 
-Sub ProcessRebillSelection()
-    ' 返戻再請求選択フォームのOKボタン処理（選択された項目を分類）
-    Dim uf As Object, listBox As Object
-    Dim i As Long
-    ' 動的フォームおよびListBoxを取得
-    Set uf = gRebillForm
-    Set listBox = uf.Controls("listBox")
-    ' 結果用Dictionaryを初期化
-    Set gRebillData = CreateObject("Scripting.Dictionary")
-    Set gLateData = CreateObject("Scripting.Dictionary")
-    ' 選択状態に応じて振り分け
-    For i = 0 To listBox.ListCount - 1
-        If listBox.Selected(i) Then
-            ' 選択されたもの -> 返戻再請求
-            gRebillData.Add gOlderList.Keys()(i), gOlderList.Items()(i)
-        Else
-            ' 選択されなかったもの -> 月遅れ請求
-            gLateData.Add gOlderList.Keys()(i), gOlderList.Items()(i)
-        End If
-    Next i
-    ' フォームを閉じる
-    Unload uf
-    Set gRebillForm = Nothing
-End Sub
+        Case "請求確定状況"
+            ' 請求確定CSV（fixfデータ）の列対応
+            column_map.Add 4, "診療（調剤）年月"
+            column_map.Add 5, "氏名"
+            column_map.Add 7, "生年月日"
+            column_map.Add 9, "医療機関名称"
+            column_map.Add 13, "総合計点数"
+            For k = 1 To 4
+                column_map.Add 16 + (k - 1) * 3, "第" & k & "公費_請求点数"
+            Next k
+            column_map.Add 30, "請求確定状況"
+            column_map.Add 31, "エラー区分"
 
-Function AddUnclaimedRecords(payerType As String, targetYear As String, targetMonth As String) As Object
-    Dim prevYear As String, prevMonth As String
-    Dim prevFileName As String, prevFilePath As String
-    Dim prevBook As Workbook, wsPrevDetails As Worksheet
-    Dim startRow As Long, endRow As Long, row As Long
-    ' 前月を算出
-    If CInt(targetMonth) = 1 Then
-        prevYear = CStr(CInt(targetYear) - 1)
-        prevMonth = "12"
-    Else
-        prevYear = targetYear
-        prevMonth = CStr(CInt(targetMonth) - 1)
-    End If
-    ' 前月の報告書ファイル名
-    Dim prevYYMM As String
-    prevYYMM = Format(CInt(prevYear) - 2018, "00") & Format(CInt(prevMonth), "00")
-    prevFileName = "保険請求管理報告書_R" & prevYYMM & ".xlsm"
-    prevFilePath = GetSavePath() & "\" & prevFileName
-    If Dir(prevFilePath) = "" Then
-        ' ファイルなし
-        Set AddUnclaimedRecords = Nothing
-        Exit Function
-    End If
-    ' 前月ファイルを開く（読み取り専用）
-    On Error Resume Next
-    Set prevBook = Workbooks.Open(prevFilePath, ReadOnly:=True)
-    On Error GoTo 0
-    If prevBook Is Nothing Then
-        Set AddUnclaimedRecords = Nothing
-        Exit Function
-    End If
-    ' 前月詳細シートを取得（シート2想定）
-    Set wsPrevDetails = prevBook.Sheets(2)
-    ' 対象カテゴリ開始行を取得
-    Dim categoryLabel As String
-    If payerType = "社保" Then
-        categoryLabel = "社保未請求扱い"
-    Else
-        categoryLabel = "国保未請求扱い"
-    End If
-    startRow = GetStartRow(wsPrevDetails, categoryLabel)
-    If startRow = 0 Then
-        prevBook.Close False
-        Set AddUnclaimedRecords = Nothing
-        Exit Function
-    End If
-    ' データ収集（開始行以降、空白行まで）
-    Set gUnclaimedList = CreateObject("Scripting.Dictionary")
-    endRow = startRow + 3  ' 基本枠4行
-    Do While wsPrevDetails.Cells(endRow, 4).Value <> "" Or wsPrevDetails.Cells(endRow + 1, 4).Value <> ""
-        endRow = endRow + 1
-        If endRow > wsPrevDetails.Rows.Count Then Exit Do
-    Loop
-    For row = startRow + 1 To endRow
-        If wsPrevDetails.Cells(row, 4).Value <> "" Then
-            Dim prevRowData As Variant
-            prevRowData = Array(wsPrevDetails.Cells(row, 4).Value, wsPrevDetails.Cells(row, 5).Value, wsPrevDetails.Cells(row, 6).Value, wsPrevDetails.Cells(row, 10).Value)
-            gUnclaimedList.Add row, prevRowData
-        End If
-    Next row
-    prevBook.Close False
-    ' ユーザーフォームで追加選択
-    If gUnclaimedList.Count > 0 Then
-        ShowUnclaimedSelectionForm
-        Set AddUnclaimedRecords = gSelectedUnclaimed
-    Else
-        Set AddUnclaimedRecords = Nothing
-    End If
-End Function
+        Case "増減点連絡書"
+            column_map.Add 2, "調剤年月"
+            column_map.Add 4, "受付番号"
+            column_map.Add 11, "区分"
+            column_map.Add 14, "老人減免区分"
+            column_map.Add 15, "氏名"
+            column_map.Add 21, "増減点数(金額)"
+            column_map.Add 22, "事由"
 
-Sub ShowUnclaimedSelectionForm()
-    If gUnclaimedList Is Nothing Or gUnclaimedList.Count = 0 Then Exit Sub
-    Dim uf As Object
-    Set uf = CreateUnclaimedSelectionForm(gUnclaimedList)
-    Set gUnclaimedForm = uf
-    gUnclaimedForm.Show vbModal
-    ' フォーム終了後、gSelectedUnclaimed に結果格納済み
-End Sub
+        Case "返戻内訳書"
+            column_map.Add 2, "調剤年月(YYMM)"
+            column_map.Add 3, "受付番号"
+            column_map.Add 4, "保険者番号"
+            column_map.Add 7, "氏名"
+            column_map.Add 9, "請求点数"
+            column_map.Add 10, "薬剤一部負担金"
+            column_map.Add 12, "一部負担金額"
+            column_map.Add 13, "公費負担金額"
+            column_map.Add 14, "事由コード"
 
-Function CreateUnclaimedSelectionForm(listData As Object) As Object
-    Dim uf As Object, listBox As Object, btnOK As Object
-    Dim i As Long, rowData As Variant
-    Set uf = VBA.UserForms.Add()
-    uf.Caption = "前月 未請求レセプトの追加選択"
-    uf.Width = 400
-    uf.Height = 500
-    Set listBox = uf.Controls.Add("Forms.ListBox.1", "listBox", True)
-    listBox.Left = 20
-    listBox.Top = 20
-    listBox.Width = 350
-    listBox.Height = 350
-    listBox.MultiSelect = 1
-    For i = 0 To listData.Count - 1
-        rowData = listData.Items()(i)
-        listBox.AddItem rowData(1) & " | " & rowData(0) & " | " & rowData(2) & " | " & rowData(3)
-    Next i
-    Set btnOK = uf.Controls.Add("Forms.CommandButton.1", "btnOK", True)
-    btnOK.Caption = "追加"
-    btnOK.Left = 150
-    btnOK.Top = 400
-    btnOK.Width = 100
-    btnOK.Height = 30
-    btnOK.OnClick = "ProcessUnclaimedSelection"
-    Set CreateUnclaimedSelectionForm = uf
-End Function
-
-Sub ProcessUnclaimedSelection()
-    Dim uf As Object, listBox As Object
-    Dim i As Long
-    Set uf = gUnclaimedForm
-    Set listBox = uf.Controls("listBox")
-    Set gSelectedUnclaimed = CreateObject("Scripting.Dictionary")
-    For i = 0 To listBox.ListCount - 1
-        If listBox.Selected(i) Then
-            gSelectedUnclaimed.Add gUnclaimedList.Keys()(i), gUnclaimedList.Items()(i)
-        End If
-    Next i
-    Unload uf
-    Set gUnclaimedForm = Nothing
-End Sub
-
-Function ConvertToCircledNumber(month As Integer) As String
-    Dim circledNumbers As Variant
-    circledNumbers = Array("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫")
-    If month >= 1 And month <= 12 Then
-        ConvertToCircledNumber = circledNumbers(month - 1)
-    Else
-        ConvertToCircledNumber = CStr(month)
-    End If
-End Function
-
-Function ConvertToWesternDate(dispensingMonth As String) As String
-    ' GYYMM形式（和暦）を西暦年下2桁.月形式に変換
-    Dim eraCode As String, yearPart As Integer, westernYear As Integer, monthPart As String
-    eraCode = Left(dispensingMonth, 1)
-    yearPart = CInt(Mid(dispensingMonth, 2, 2))
-    monthPart = Right(dispensingMonth, 2)
-    Select Case eraCode
-        Case "5": westernYear = 2018 + yearPart   ' 令和 (2019年=令和1年)
-        Case "4": westernYear = 1988 + yearPart   ' 平成 (1989年=平成1年)
-        Case Else: westernYear = 2018 + yearPart  ' （デフォルト:令和として計算）
+        Case Else
+            ' その他データ種別（必要に応じ追加）
     End Select
+
+    Set GetColumnMapping = column_map
+End Function
+
+Function ConvertToWesternDate(dispensingCode As String) As String
+    Dim era_code As String, yearNum As Integer, westernYear As Integer, monthPart As String
+    If Len(dispensingCode) < 5 Then
+        ConvertToWesternDate = ""
+        Exit Function
+    End If
+    era_code = Left(dispensingCode, 1)                ' 元号コード
+    yearNum = CInt(Mid(dispensingCode, 2, 2))         ' 元号年2桁
+    monthPart = Right(dispensingCode, 2)             ' 月2桁
+    Select Case era_code
+        Case "5": westernYear = 2018 + yearNum   ' 令和 (2019=元年)
+        Case "4": westernYear = 1988 + yearNum   ' 平成 (1989=元年)
+        Case "3": westernYear = 1925 + yearNum   ' 昭和 (1926=元年)
+        Case "2": westernYear = 1911 + yearNum   ' 大正 (1912=元年)
+        Case "1": westernYear = 1867 + yearNum   ' 明治 (1868=元年)
+        Case Else: westernYear = 2000 + yearNum  ' 仮置き
+    End Select
+    ' WesternYearの下2桁と月を組み合わせ "YY.MM"形式文字列を返す
     ConvertToWesternDate = Right(CStr(westernYear), 2) & "." & monthPart
 End Function
 
-' 半年ごとの売掛データ比較・誤差分析機能
-Sub CompareHalfYearData()
-    Dim inputYear As String, half As String
-    inputYear = InputBox("分析する年を入力してください（西暦）:", "半年売掛比較")
-    If inputYear = "" Then Exit Sub
-    half = InputBox("上期=1 または 下期=2 を入力してください:", "半年区分")
-    If half = "" Then Exit Sub
-    If half <> "1" And half <> "2" Then
-        MsgBox "半期区分は1または2で入力してください。", vbExclamation, "入力エラー"
+Function GetStartRow(ws As Worksheet, categoryName As String) As Long
+    Dim foundCell As Range
+    Set foundCell = ws.Cells.Find(what:=categoryName, LookAt:=xlWhole)
+    If Not foundCell Is Nothing Then
+        GetStartRow = foundCell.Row
+    Else
+        GetStartRow = 0
+    End If
+End Function
+
+Function GetUniqueSheetName(wb As Workbook, base_name As String) As String
+    Dim newName As String, counter As Integer
+    Dim sheet As Worksheet, exists As Boolean
+    newName = base_name
+    counter = 1
+    Do
+        exists = False
+        For Each sheet In wb.Sheets
+            If LCase(sheet.Name) = LCase(newName) Then
+                exists = True
+                Exit For
+            End If
+        Next sheet
+        If exists Then
+            newName = base_name & "_" & counter
+            counter = counter + 1
+        End If
+    Loop While exists
+    GetUniqueSheetName = newName
+End Function
+
+' --- （参考）半期ごとの請求誤差調査 ---
+Sub InvestigateHalfYearDiscrepancy()
+    ' ユーザー入力の年（西暦）と半期区分について、保存済み報告書ファイルを集計し請求点数と決定点数の差異を一覧表示する。
+    Dim year_str As String, half_str As String
+    Dim year_num As Integer, half_term As Integer
+    Dim start_month As Integer, end_month As Integer
+    Dim file_system_local As Object, folder_path As String
+    Dim m As Integer
+    Dim file_name As String, file_path As String
+    Dim wb As Workbook, wsMain As Worksheet, deposit_sheet As Worksheet
+    Dim total_points_claim As Long, total_points_decided As Long
+    Dim era_code As String, era_year As Integer, era_year_code As String
+    Dim result_msg As String
+
+    ' 1. 対象年と半期を入力させる
+    year_str = InputBox("調査する年（西暦）を入力してください:", "半期請求誤差調査")
+    If year_str = "" Then Exit Sub
+    half_str = InputBox("上期(1) または 下期(2) を指定してください:", "半期請求誤差調査")
+    If half_str = "" Then Exit Sub
+    If Not IsNumeric(year_str) Or Not IsNumeric(half_str) Then
+        MsgBox "入力が正しくありません。", vbExclamation, "入力エラー"
         Exit Sub
     End If
-    Dim startMonth As Integer, endMonth As Integer
-    If half = "1" Then
-        startMonth = 1: endMonth = 6
-    Else
-        startMonth = 7: endMonth = 12
+    year_num = CInt(year_str)
+    half_term = CInt(half_str)
+    If half_term <> 1 And half_term <> 2 Then
+        MsgBox "半期の指定が不正です。1（上期）または2（下期）を指定してください。", vbExclamation, "入力エラー"
+        Exit Sub
     End If
-    Dim analysisWb As Workbook
-    Set analysisWb = ThisWorkbook
-    Dim outSheet As Worksheet
-    On Error Resume Next
-    Set outSheet = analysisWb.Sheets("HalfYearAnalysis")
-    On Error GoTo 0
-    If outSheet Is Nothing Then
-        Set outSheet = analysisWb.Sheets.Add
-        outSheet.Name = "HalfYearAnalysis"
+
+    ' 2. 半期の開始月・終了月を設定
+    If half_term = 1 Then
+        start_month = 1: end_month = 6   ' 上期: 1～6月
     Else
-        outSheet.Cells.Clear
+        start_month = 7: end_month = 12  ' 下期: 7～12月
     End If
-    outSheet.Range("A1:E1").Value = Array("月", "日次計上点数", "請求確定点数", "振込額(円)", "点数差異")
-    Dim m As Integer, rowIndex As Integer
-    rowIndex = 2
-    For m = startMonth To endMonth
-        Dim yy As String, mm As String, fileCode As String
-        yy = Format(CInt(inputYear) - 2018, "00")
-        mm = Format(m, "00")
-        fileCode = "R" & yy & mm
-        Dim reportName As String
-        reportName = "保険請求管理報告書_" & fileCode & ".xlsm"
-        Dim reportPath As String
-        reportPath = GetSavePath() & "\" & reportName
-        If Dir(reportPath) <> "" Then
-            Dim repWb As Workbook
-            Set repWb = Workbooks.Open(reportPath, ReadOnly:=True)
-            Dim wsA As Worksheet, wsCSV As Worksheet
-            Set wsA = repWb.Sheets(1)
-            Dim dailyTotal As Long
-            dailyTotal = 0
-            On Error Resume Next
-            dailyTotal = CLng(wsA.Range("J50").Value)
-            On Error GoTo 0
-            Dim billedTotal As Long
-            billedTotal = 0
-            On Error Resume Next
-            billedTotal = CLng(wsA.Range("J50").Value)
-            On Error GoTo 0
-            Dim payAmount As Long
-            payAmount = 0
-            For Each wsCSV In repWb.Worksheets
-                If InStr(wsCSV.Name, "振込額明細書") > 0 Then
-                    On Error Resume Next
-                    payAmount = CLng(wsCSV.Cells(wsCSV.Rows.Count, 3).End(xlUp).Value)
-                    On Error GoTo 0
-                    Exit For
-                End If
-            Next wsCSV
-            repWb.Close False
-            Dim pointDiff As Long
-            pointDiff = dailyTotal - billedTotal
-            outSheet.Cells(rowIndex, 1).Value = inputYear & "年" & m & "月"
-            outSheet.Cells(rowIndex, 2).Value = dailyTotal
-            outSheet.Cells(rowIndex, 3).Value = billedTotal
-            outSheet.Cells(rowIndex, 4).Value = payAmount
-            outSheet.Cells(rowIndex, 5).Value = pointDiff
-            rowIndex = rowIndex + 1
+
+    Set file_system_local = CreateObject("Scripting.FileSystemObject")
+    folder_path = GetSavePath()
+    If folder_path = "" Then
+        MsgBox "保存フォルダが設定されていません。", vbExclamation, "エラー"
+        Exit Sub
+    End If
+
+    result_msg = year_num & "年 " & IIf(half_term = 1, "上期", "下期") & " 請求誤差調査結果:" & vbCrLf
+
+    ' 3. 指定期間各月の報告書ファイルを順次開き、請求点数と決定点数を集計
+    For m = start_month To end_month
+        ' ファイル名（RYYMM形式）を構築
+        If year_num >= 2019 Then
+            era_code = "5": era_year = year_num - 2018   ' 令和
+        ElseIf year_num >= 1989 Then
+            era_code = "4": era_year = year_num - 1988   ' 平成
+        ElseIf year_num >= 1926 Then
+            era_code = "3": era_year = year_num - 1925   ' 昭和
+        ElseIf year_num >= 1912 Then
+            era_code = "2": era_year = year_num - 1911   ' 大正
         Else
-            outSheet.Cells(rowIndex, 1).Value = inputYear & "年" & m & "月"
-            outSheet.Cells(rowIndex, 2).Value = "N/A"
-            outSheet.Cells(rowIndex, 3).Value = "N/A"
-            outSheet.Cells(rowIndex, 4).Value = "N/A"
-            outSheet.Cells(rowIndex, 5).Value = "N/A"
-            rowIndex = rowIndex + 1
+            era_code = "1": era_year = year_num - 1867   ' 明治
+        End If
+        era_year_code = Format(era_year, "00")
+        file_name = "保険請求管理報告書_" & era_year_code & Format(m, "00") & ".xlsm"
+        file_path = folder_path & "\" & file_name
+
+        If file_system_local.FileExists(file_path) Then
+            ' 報告書Excelを開いて集計
+            Set wb = Workbooks.Open(file_path, ReadOnly:=True)
+            Set wsMain = wb.Sheets(1)  ' メインシート
+            total_points_claim = 0: total_points_decided = 0
+
+            ' メインシート「総合計点数」列合計を算出（請求点数合計）
+            Dim header_cell As Range, colClaim As Long
+            Set header_cell = wsMain.Rows(1).Find("総合計点数", LookAt:=xlWhole)
+            If Not header_cell Is Nothing Then
+                colClaim = header_cell.Column
+                Dim last_row As Long
+                last_row = wsMain.Cells(wsMain.Rows.Count, colClaim).End(xlUp).Row
+                If last_row >= 2 Then
+                    total_points_claim = Application.WorksheetFunction.Sum(wsMain.Range(wsMain.Cells(2, colClaim), wsMain.Cells(last_row, colClaim)))
+                End If
+            End If
+
+            ' 振込額明細シート上の「決定点数」列合計を算出（実際の支払点数合計）
+            Set deposit_sheet = Nothing
+            Dim sheet As Worksheet, found_header As Range
+            For Each sheet In wb.Sheets
+                Set found_header = sheet.Rows(1).Find("決定点数", LookAt:=xlPart)
+                If Not found_header Is Nothing Then
+                    ' ヘッダに"決定点数"を含むシート（メインシートおよび詳細シートは除く）を振込額明細シートとみなす
+                    If LCase(sheet.Name) <> LCase(wsMain.Name) And LCase(sheet.Name) <> LCase(wb.Sheets(2).Name) Then
+                        Set deposit_sheet = sheet
+                        Exit For
+                    End If
+                End If
+            Next sheet
+            If Not deposit_sheet Is Nothing Then
+                ' 決定点数列（複数列: 社保・各公費）を順次合計
+                Dim col As Long
+                For col = 1 To deposit_sheet.UsedRange.Columns.Count
+                    If InStr(deposit_sheet.Cells(1, col).Value, "決定点数") > 0 Then
+                        Dim last_row_dep As Long
+                        last_row_dep = deposit_sheet.Cells(deposit_sheet.Rows.Count, col).End(xlUp).Row
+                        If last_row_dep >= 2 Then
+                            total_points_decided = total_points_decided + Application.WorksheetFunction.Sum(deposit_sheet.Range(deposit_sheet.Cells(2, col), deposit_sheet.Cells(last_row_dep, col)))
+                        End If
+                    End If
+                Next col
+            End If
+
+            wb.Close SaveChanges:=False
+
+            ' 差異を算出しメッセージ文字列に追加
+            Dim diff_points As Long
+            diff_points = total_points_claim - total_points_decided
+            If diff_points <> 0 Then
+                result_msg = result_msg & "・" & year_num & "年" & m & "月: 請求=" & total_points_claim & " , 決定=" & total_points_decided & " （差異 " & diff_points & "点）" & vbCrLf
+            End If
+        Else
+            result_msg = result_msg & "・" & year_num & "年" & m & "月: 報告書未作成" & vbCrLf
         End If
     Next m
-    MsgBox inputYear & "年 " & IIf(half = "1", "上期", "下期") & " の売掛データ比較が完了しました。" & vbCrLf & _
-           "シート[" & outSheet.Name & "]に結果を出力しました。", vbInformation, "分析完了"
+
+    ' 4. 集計結果を表示
+    MsgBox result_msg, vbInformation, "半期ごとの請求誤差調査結果"
 End Sub
+
+Function ConvertEraCodeToLetter(era_code_num As String) As String
+    Select Case era_code_num
+        Case "1": ConvertEraCodeToLetter = "M"
+        Case "2": ConvertEraCodeToLetter = "T"
+        Case "3": ConvertEraCodeToLetter = "S"
+        Case "4": ConvertEraCodeToLetter = "H"
+        Case "5": ConvertEraCodeToLetter = "R"
+        Case Else: ConvertEraCodeToLetter = "E"
+    End Select
+End Function
+
+' (追加) 請求年月（GYYMM形式）から調剤年月（RYYMM形式）を取得する関数
+Function GetDispensingYearMonthFromFileName(fileName As String) As String
+    Dim base_name As String, codePart As String
+    Dim era_code_num As String, era_year_code As String, month_code As String
+    Dim westernYear As Integer, western_month As Integer
+    ' ファイル名から拡張子を除いた部分を取得
+    base_name = fileName
+    If InStr(fileName, ".") > 0 Then base_name = Left(fileName, InStrRev(fileName, ".") - 1)
+    ' ファイル名中のGYYMMコード部分を抽出（末尾の5文字が数字の場合に取得）
+    codePart = Right(base_name, 5)
+    If Not codePart Like "*#####" Then
+        ' 末尾5文字が数字でない場合、"TEST"挿入などを考慮して数字部分を検索
+        Dim i As Long
+        For i = Len(base_name) To 1 Step -1
+            If Mid(base_name, i, 5) Like "#####" Then
+                codePart = Mid(base_name, i, 5)
+                Exit For
+            End If
+        Next i
+    End If
+    If Len(codePart) <> 5 Or Not IsNumeric(codePart) Then
+        GetDispensingYearMonthFromFileName = ""  ' 変換失敗時は空文字
+        Exit Function
+    End If
+    ' 請求年月（GYYMM）のコードから西暦年・月を取得
+    era_code_num = Left(codePart, 1)          ' 元号コード（数字）
+    era_year_code = Mid(codePart, 2, 2)       ' 元号年（2桁）
+    month_code = Right(codePart, 2)          ' 月（2桁）
+    Select Case era_code_num
+        Case "5": westernYear = 2018 + CInt(era_year_code)   ' 令和(2019=令和元年)
+        Case "4": westernYear = 1988 + CInt(era_year_code)   ' 平成(1989=平成元年)
+        Case "3": westernYear = 1925 + CInt(era_year_code)   ' 昭和(1926=昭和元年)
+        Case "2": westernYear = 1911 + CInt(era_year_code)   ' 大正(1912=大正元年)
+        Case "1": westernYear = 1867 + CInt(era_year_code)   ' 明治(1868=明治元年)
+        Case Else: westernYear = 2000 + CInt(era_year_code)  ' 不明なコード（仮）
+    End Select
+    western_month = CInt(month_code)
+    ' 請求年月の1ヶ月前を調剤年月とする（月を1減算）
+    western_month = western_month - 1
+    If western_month = 0 Then
+        westernYear = westernYear - 1
+        western_month = 12
+    End If
+    ' 調剤年月を元号コード(アルファベット)付きのRYYMM形式文字列に変換
+    Dim new_era_code As String, new_era_year As Integer, new_era_year_code As String, era_letter As String
+    If westernYear >= 2019 Then
+        new_era_code = "5": new_era_year = westernYear - 2018   ' 令和
+    ElseIf westernYear >= 1989 Then
+        new_era_code = "4": new_era_year = westernYear - 1988   ' 平成
+    ElseIf westernYear >= 1926 Then
+        new_era_code = "3": new_era_year = westernYear - 1925   ' 昭和
+    ElseIf westernYear >= 1912 Then
+        new_era_code = "2": new_era_year = westernYear - 1911   ' 大正
+    Else
+        new_era_code = "1": new_era_year = westernYear - 1867   ' 明治
+    End If
+    new_era_year_code = Format(new_era_year, "00")
+    era_letter = ConvertEraCodeToLetter(new_era_code)
+    GetDispensingYearMonthFromFileName = era_letter & new_era_year_code & Format(western_month, "00")
+End Function
+
+' (追加) GYYMM形式に基づき報告書ファイル名を生成する関数
+Function GetReportFileName(fileName As String) As String
+    Dim report_code As String
+    report_code = GetDispensingYearMonthFromFileName(fileName)
+    If report_code = "" Then
+        GetReportFileName = ""
+    Else
+        GetReportFileName = "保険請求管理報告書_" & report_code & ".xlsm"
+    End If
+End Function
