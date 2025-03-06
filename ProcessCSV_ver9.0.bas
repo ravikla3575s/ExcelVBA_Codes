@@ -1,5 +1,14 @@
 Option Explicit
 
+' グローバル変数（ユーザーフォーム管理用）
+Dim gRebillForm As Object          ' 動的に作成した返戻再請求選択フォーム
+Dim gUnclaimedForm As Object       ' 動的に作成した未請求レセプト選択フォーム
+Dim gOlderList As Object           ' 過去レセプトデータ一覧（返戻再請求/月遅れ選択用）
+Dim gUnclaimedList As Object       ' 前月未請求データ一覧（未請求レセプト選択用）
+Dim gRebillData As Object          ' ユーザー選択結果：返戻再請求に分類するデータ
+Dim gLateData As Object            ' ユーザー選択結果：月遅れ請求に分類するデータ
+Dim gSelectedUnclaimed As Object   ' ユーザー選択結果：前月未請求から追加するデータ
+
 ' **請求CSV一括処理マクロ:** 
 ' 指定フォルダ内の請求確定CSV(`fixf`)および各種明細CSV(`fmei`:振込額明細, `henr`:返戻内訳, `zogn`:増減点連絡)を読み込み、
 ' 月次の「保険請求管理報告書」Excelを作成・更新します。
