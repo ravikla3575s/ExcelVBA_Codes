@@ -12,7 +12,7 @@ Private Const SAVE_PATH As String = ThisWorkbook.Sheets("設定").Range("B3").Va
 Sub CreateReportsFromCSV()
     Dim csv_folder As String            ' CSVフォルダパス
     Dim file_system As Object          ' FileSystemObject
-    Dim invoice_year As String, invoice_month As String  ' 処理対象の診療年・月（西暦）
+    Dim billing_year As String, billing_month As String  ' 処理対象の診療年・月（西暦）
     Dim fixf_files As New Collection, fmei_files As New Collection
     Dim henr_files As New Collection, zogn_files As New Collection
     Dim file_obj As Object
@@ -112,19 +112,19 @@ End Function
 
 Function CreateReportFiles(file_system As Object, files As Collection, save_path As String, template_path As String)
     Dim file As Object
-    Dim invoice_year As String, invoice_month As String
+    Dim billing_year As String, billing_month As String
     Dim era_letter As String, era_year_val As Integer, year_code As String
     
     For Each file In files
         ' CSVから年月を取得
-        invoice_year = "": invoice_month = ""
+        billing_year = "": billing_month = ""
         
         ' ファイル種類によって年月取得方法を変える
         If InStr(LCase(file.Name), "fixf") > 0 Then
             ' fixfファイルの場合、18文字目以降からYYYYMMDDhhmmss形式で取得
             If Len(file.Name) >= 25 Then
-                invoice_year = Mid(file.Name, 18, 4)
-                invoice_month = Mid(file.Name, 22, 2)
+                billing_year = Mid(file.Name, 18, 4)
+                billing_month = Mid(file.Name, 22, 2)
             End If
         ElseIf InStr(LCase(file.Name), "fmei") > 0 Then
             ' fmeiファイルの場合、18文字目以降からGYYMM形式で取得
@@ -133,38 +133,38 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                 era_code = Mid(file.Name, 18, 1)
                 Dim yy As String
                 yy = Mid(file.Name, 19, 2)
-                invoice_month = Mid(file.Name, 21, 2)
+                billing_month = Mid(file.Name, 21, 2)
                 
                 ' 元号コードから西暦年を計算
                 Select Case era_code
-                    Case "5": invoice_year = CStr(2018 + CInt(yy))  ' 令和
-                    Case "4": invoice_year = CStr(1988 + CInt(yy))  ' 平成
-                    Case "3": invoice_year = CStr(1925 + CInt(yy))  ' 昭和
-                    Case "2": invoice_year = CStr(1911 + CInt(yy))  ' 大正
-                    Case "1": invoice_year = CStr(1867 + CInt(yy))  ' 明治
+                    Case "5": billing_year = CStr(2018 + CInt(yy))  ' 令和
+                    Case "4": billing_year = CStr(1988 + CInt(yy))  ' 平成
+                    Case "3": billing_year = CStr(1925 + CInt(yy))  ' 昭和
+                    Case "2": billing_year = CStr(1911 + CInt(yy))  ' 大正
+                    Case "1": billing_year = CStr(1867 + CInt(yy))  ' 明治
                 End Select
             End If
         End If
         
-        If invoice_year <> "" And invoice_month <> "" Then
+        If billing_year <> "" And billing_month <> "" Then
             ' 元号コードを設定
-            If CInt(invoice_year) >= 2019 Then
-                era_letter = "R": era_year_val = CInt(invoice_year) - 2018  ' 令和
-            ElseIf CInt(invoice_year) >= 1989 Then
-                era_letter = "H": era_year_val = CInt(invoice_year) - 1988  ' 平成
-            ElseIf CInt(invoice_year) >= 1926 Then
-                era_letter = "S": era_year_val = CInt(invoice_year) - 1925  ' 昭和
-            ElseIf CInt(invoice_year) >= 1912 Then
-                era_letter = "T": era_year_val = CInt(invoice_year) - 1911  ' 大正
+            If CInt(billing_year) >= 2019 Then
+                era_letter = "R": era_year_val = CInt(billing_year) - 2018  ' 令和
+            ElseIf CInt(billing_year) >= 1989 Then
+                era_letter = "H": era_year_val = CInt(billing_year) - 1988  ' 平成
+            ElseIf CInt(billing_year) >= 1926 Then
+                era_letter = "S": era_year_val = CInt(billing_year) - 1925  ' 昭和
+            ElseIf CInt(billing_year) >= 1912 Then
+                era_letter = "T": era_year_val = CInt(billing_year) - 1911  ' 大正
             Else
-                era_letter = "M": era_year_val = CInt(invoice_year) - 1867  ' 明治
+                era_letter = "M": era_year_val = CInt(billing_year) - 1867  ' 明治
             End If
             
             year_code = Format(era_year_val, "00")
             
             ' 報告書ファイル名を生成
             Dim report_file_name As String, report_file_path As String
-            report_file_name = GenerateReportFileName(CInt(invoice_year), CInt(invoice_month))
+            report_file_name = GenerateReportFileName(CInt(billing_year), CInt(billing_month))
             If report_file_name = "" Then
                 MsgBox "ファイル名の生成に失敗しました。", vbExclamation, "エラー"
                 Exit Function
@@ -180,7 +180,7 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                     Application.DisplayAlerts = False
                     report_wb.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
                     ' テンプレート情報を設定（シート名の変更も含む）
-                    SetTemplateInfo report_wb, invoice_year, invoice_month
+                    SetTemplateInfo report_wb, billing_year, billing_month
                     Application.DisplayAlerts = True
                 End If
             End If
@@ -374,36 +374,36 @@ Function ConvertEraCodeToLetter(era_code As String) As String
     End Select
 End Function
 
-Function SetTemplateInfo(report_book As Workbook, invoice_year As String, invoice_month As String) As Boolean
+Function SetTemplateInfo(report_book As Workbook, billing_year As String, billing_month As String) As Boolean
     Dim ws_main As Worksheet, ws_sub As Worksheet
-    Dim invoice_year_num As Integer, invoice_month_num As Integer
+    Dim billing_year_num As Integer, billing_month_num As Integer
     Dim dispensing_year As Integer, dispensing_month As Integer
     Dim send_date As String
 
     On Error GoTo ErrorHandler
 
     ' 西暦年と調剤月の計算
-    invoice_year_num = CInt(invoice_year)
-    invoice_month_num = CInt(invoice_month)
+    billing_year_num = CInt(billing_year)
+    billing_month_num = CInt(billing_month)
 
     ' 請求月の計算（請求月 = 調剤月の翌月）
-    dispensing_month = invoice_month_num - 1
+    dispensing_month = billing_month_num - 1
     If dispensing_month <= 0 Then
-        dispensing_year = invoice_year_num - 1
+        dispensing_year = billing_year_num - 1
         dispensing_month = 12
     Else
-        dispensing_year = invoice_year_num
+        dispensing_year = billing_year_num
     End If
 
-    send_date = invoice_month_num & "月10日請求分"
+    send_date = billing_month_num & "月10日請求分"
 
     ' テンプレートシート（シート1: A, シート2: B）を取得
     Set ws_main = report_book.Sheets(1)
     Set ws_sub = report_book.Sheets(2)
 
     ' シート名変更（シート1を "R{令和YY}.{M}"形式, シート2を丸数字月に）
-    ws_main.Name = "R" & (invoice_year_num - 2018) & "." & invoice_month_num
-    ws_sub.Name = ConvertToCircledNumber(invoice_month_num)
+    ws_main.Name = "R" & (billing_year_num - 2018) & "." & billing_month_num
+    ws_sub.Name = ConvertToCircledNumber(billing_month_num)
 
     ' 情報転記（ヘッダ部）
     ws_main.Range("G2").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
