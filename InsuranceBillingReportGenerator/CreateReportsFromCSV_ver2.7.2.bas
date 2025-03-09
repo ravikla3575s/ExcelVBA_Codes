@@ -833,8 +833,8 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef ye
 End Function
 
 ' 長時間処理の進捗表示
-Private Sub UpdateProgress(current As Long, total As Long)
-    Application.StatusBar = "処理中... " & current & "/" & total
+Private Sub UpdateProgress(current As Long, total As Long, message As String)
+    Application.StatusBar = message & " - " & current & "/" & total
 End Sub
 
 ' 元号コードから元号名を取得する関数を追加
@@ -917,3 +917,7 @@ Private Function GetYearMonthFromFileName(file_name As String, ByRef western_yea
         GetYearMonthFromFileName = False
     End If
 End Function
+
+Private Sub CreateBackup(file_path As String)
+    ' ファイルのバックアップを作成
+End Sub
