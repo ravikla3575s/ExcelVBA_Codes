@@ -44,4 +44,4 @@ Sub SetTemplateAndSavePath()
            "店舗名: " & storeName & vbCrLf & _
            "テンプレート保存先: " & templatePath & vbCrLf & _
            "新規ファイル保存先: " & saveFolder, vbInformation
-End Su
+End Sub
