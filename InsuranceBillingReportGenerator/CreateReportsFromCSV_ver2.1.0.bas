@@ -10,6 +10,9 @@ Private Const TEMPLATE_PATH As String = ThisWorkbook.Sheets("設定").Range("B2"
 Private Const SAVE_PATH As String = ThisWorkbook.Sheets("設定").Range("B3").Value
 
 Sub CreateReportsFromCSV()
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
     Dim csv_folder As String            ' CSVフォルダパス
     Dim file_system As Object          ' FileSystemObject
     Dim billing_year As String, billing_month As String  ' 処理対象の診療年・月（西暦）
@@ -81,6 +84,9 @@ Sub CreateReportsFromCSV()
 
     ' オブジェクトの解放処理を追加
     Set file_system = Nothing
+    
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
 End Sub
 
 Function SelectCsvFolder() As String
@@ -174,6 +180,7 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
             ' ファイルが存在しない場合のみ新規作成
             If Not file_system.FileExists(report_file_path) Then
                 Dim report_wb As Workbook
+                On Error GoTo ErrorHandler
                 Set report_wb = Workbooks.Add(template_path)
                 
                 If Not report_wb Is Nothing Then
@@ -183,12 +190,16 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                     SetTemplateInfo report_wb, billing_year, billing_month
                     Application.DisplayAlerts = True
                 End If
+                Exit Function
+
+ErrorHandler:
+                If Not report_wb Is Nothing Then
+                    report_wb.Close SaveChanges:=False
+                    Set report_wb = Nothing
+                End If
             End If
         End If
     Next file
-
-    ' オブジェクトの解放処理を追加
-    Set report_wb = Nothing
 End Function
 
 Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_type_name As String)
@@ -198,9 +209,10 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         Dim base_name As String, sheet_name As String
         Dim report_wb As Workbook
         Dim sheet_exists As Boolean
+        Dim era_year As String, dispensing_month As String
 
         '出力先の報告書ファイル名（RYYMM形式）を生成
-        report_file_name = GetReportFileName(file_obj.Name)
+        report_file_name = GetReportFileName(file_obj.Name, era_year, dispensing_month)
         If report_file_name = "" Then
             MsgBox "ファイル " & file_obj.Name & " から診療年月を取得できませんでした。", vbExclamation, "エラー"
             GoTo NextFile
@@ -211,10 +223,11 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         ' 追加すべきチェック
         If Not file_system.FileExists(report_file_path) Then
             MsgBox "ファイルが存在しません: " & report_file_path, vbExclamation
-            Exit Sub
+            GoTo NextFile
         End If
 
         ' ワークブックを開く処理を先に行う
+        On Error GoTo ErrorHandler
         Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=True)
         If report_wb Is Nothing Then
             MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
@@ -232,59 +245,29 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         ImportCsvData file_obj.Path, ws_csv, file_type_name
 
         ' 詳細データを詳細シートに反映
-        TransferBillingDetails report_wb, file_obj.Name
+        Call TransferBillingDetails report_wb, file_obj.Name, era_year, dispensing_month
 
         ' 保存してブックを閉じる
         report_wb.Save
         report_wb.Close False
+
+        ' オブジェクトの解放処理を追加
+        Set report_wb = Nothing
+        Exit Sub
+
+ErrorHandler:
+        If Not report_wb Is Nothing Then
+            report_wb.Close SaveChanges:=False
+            Set report_wb = Nothing
+        End If
 NextFile:
         ' 次のCSVファイルへ
     Next file_obj
-
-    ' オブジェクトの解放処理を追加
-    Set report_wb = Nothing
 End Sub
 
-        ' 追加すべきチェック
-        If Not file_system.FileExists(report_file_path) Then
-            MsgBox "ファイルが存在しません: " & report_file_path, vbExclamation
-            Exit Sub
-        End If
-
-        ' ワークブックを開く処理を先に行う
-        Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=True)
-        If report_wb Is Nothing Then
-            MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
-            GoTo NextFile
-        End If
-
-        ' CSVデータをインポートして新規シートに転記
-        base_name = file_system.GetBaseName(file_obj.Name)
-        sheet_name = base_name
-        Dim insert_index As Long
-        insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.Count + 1)
-        Dim ws_csv As Worksheet
-        Set ws_csv = report_wb.Sheets.Add(After:=report_wb.Sheets(insert_index - 1))
-        ws_csv.Name = sheet_name
-        ImportCsvData file_obj.Path, ws_csv, file_type_name
-
-        ' 詳細データを詳細シートに反映
-        TransferBillingDetails report_wb, file_obj.Name
-
-        ' 保存してブックを閉じる
-        report_wb.Save
-        report_wb.Close False
-NextFile:
-        ' 次のCSVファイルへ
-    Next file_obj
-
-    ' オブジェクトの解放処理を追加
-    Set report_wb = Nothing
-End Sub
-
-Function GetReportFileName(file_name As String) As String
+Function GetReportFileName(file_name As String, ByRef era_year As String, ByRef dispensing_month As String) As String
     Dim report_code As String
-    report_code = GetDispensingYearMonthFromFileName(file_name)
+    report_code = GetDispensingYearMonthFromFileName(file_name, era_year, dispensing_month)
     If report_code = "" Then
         GetReportFileName = ""
     Else
@@ -292,58 +275,77 @@ Function GetReportFileName(file_name As String) As String
     End If
 End Function
 
-Function GetDispensingYearMonthFromFileName(file_name As String) As String
-    Dim base_name As String, code_part As String
-    Dim era_code_num As String, era_year_code As String, month_code As String
-    Dim western_year As Integer, western_month As Integer
+Function GetDispensingYearMonthFromFileName(file_name As String, ByRef era_year As String, ByRef dispensing_month As String) As String
+    Dim base_name As String, file_type As String
+    Dim western_year As Integer, western_month As Integer    ' 西暦表示の請求年月
     
     base_name = file_name
-    If InStr(file_name, ".") > 0 Then 
+    If InStr(file_name, ".") > 0 Then
         base_name = Left(file_name, InStrRev(file_name, ".") - 1)
     End If
     
-    code_part = Right(base_name, 5)
-    If Not code_part Like "*#####" Then
-        Dim i As Long
-        For i = Len(base_name) To 1 Step -1
-            If Mid(base_name, i, 5) Like "#####" Then
-                code_part = Mid(base_name, i, 5)
-                Exit For
-            End If
-        Next i
-    End If
-    
-    If Len(code_part) <> 5 Or Not IsNumeric(code_part) Then
+    ' ファイルタイプの判定
+    If InStr(base_name, "fixf") > 0 Then
+        file_type = "fixf"
+    ElseIf InStr(base_name, "fmei") > 0 Or InStr(base_name, "henr") > 0 Or InStr(base_name, "zogn") > 0 Then
+        file_type = "other"
+    Else
         GetDispensingYearMonthFromFileName = ""
         Exit Function
     End If
     
-    era_code_num = Left(code_part, 1)          ' 元号コード（数字）
-    era_year_code = Mid(code_part, 2, 2)       ' 元号年（2桁）
-    month_code = Right(code_part, 2)           ' 月（2桁）
+    ' ファイルタイプに応じた年月取得
+    If file_type = "fixf" Then
+        ' YYYYMMDDhhmmss形式から取得
+        Dim date_part As String
+        date_part = Right(base_name, 14)
+        If Not IsNumeric(date_part) Then
+            GetDispensingYearMonthFromFileName = ""
+            Exit Function
+        End If
+        western_year = CInt(Left(date_part, 4))
+        western_month = CInt(Mid(date_part, 5, 2))
+    Else
+        ' GYYMM形式から取得
+        Dim code_part As String
+        code_part = Right(base_name, 5)
+        If Not IsNumeric(code_part) Then
+            GetDispensingYearMonthFromFileName = ""
+            Exit Function
+        End If
+        
+        Dim era_code_num As String, era_year_code As String, month_code As String
+        era_code_num = Left(code_part, 1)
+        era_year_code = Mid(code_part, 2, 2)
+        month_code = Right(code_part, 2)
+        
+        ' 元号コードから西暦年を計算
+        Select Case era_code_num
+            Case "5": western_year = 2018 + CInt(era_year_code)   ' 令和
+            Case "4": western_year = 1988 + CInt(era_year_code)   ' 平成
+            Case "3": western_year = 1925 + CInt(era_year_code)   ' 昭和
+            Case "2": western_year = 1911 + CInt(era_year_code)   ' 大正
+            Case "1": western_year = 1867 + CInt(era_year_code)   ' 明治
+            Case Else: western_year = 2000 + CInt(era_year_code)
+        End Select
+        western_month = CInt(month_code)
+    End If
+    ' 請求月から調剤月を計算（前月が調剤月）
+    dispensing_month = western_month - 1
+    If dispensing_month < 1 Then
+        dispensing_month = 12
+        dispensing_year = western_year - 1
+    Else
+        dispensing_year = western_year
+    End If
     
-    ' 元号コードから西暦年を計算
-    Select Case era_code_num
-        Case "5": western_year = 2018 + CInt(era_year_code)   ' 令和(2019=令和元年)
-        Case "4": western_year = 1988 + CInt(era_year_code)   ' 平成(1989=平成元年)
-        Case "3": western_year = 1925 + CInt(era_year_code)   ' 昭和(1926=昭和元年)
-        Case "2": western_year = 1911 + CInt(era_year_code)   ' 大正(1912=大正元年)
-        Case "1": western_year = 1867 + CInt(era_year_code)   ' 明治(1868=明治元年)
-        Case Else: western_year = 2000 + CInt(era_year_code)  ' 不明なコードの場合
-    End Select
-    
-    ' 調剤月から請求月を計算（翌月が請求月）
-    western_month = CInt(month_code)
-    western_month = western_month + 1  ' 変更：-1から+1に変更
-    If western_month > 12 Then         ' 変更：0から12に条件変更
-        western_year = western_year + 1 ' 変更：-1から+1に変更
-        western_month = 1              ' 変更：12から1に変更
+    ' 一桁の数字に変換（先頭の0を除去）
+    If dispensing_month < 10 Then
+        dispensing_month = CInt(Right(CStr(dispensing_month), 1))
     End If
     
     ' 新しい元号コードと年を計算
     Dim new_era_code As String, new_era_year As Integer
-    Dim new_era_year_code As String
-    
     If western_year >= 2019 Then
         new_era_code = "5": new_era_year = western_year - 2018   ' 令和
     ElseIf western_year >= 1989 Then
@@ -356,11 +358,9 @@ Function GetDispensingYearMonthFromFileName(file_name As String) As String
         new_era_code = "1": new_era_year = western_year - 1867   ' 明治
     End If
     
-    new_era_year_code = Format(new_era_year, "00")
-    ' 変更：元号文字を使用する代わりに元号名を使用
-    GetDispensingYearMonthFromFileName = GetEraName(new_era_code) & _
-                                       new_era_year_code & _
-                                       Format(western_month, "00")
+    era_year = dispensing_year - 2018
+    
+    GetDispensingYearMonthFromFileName = "保険請求管理報告書_" & GetEraName(new_era_code) & era_year & "年" & dispensing_month & "月調剤分"
 End Function
 
 Function ConvertEraCodeToLetter(era_code As String) As String
@@ -388,8 +388,8 @@ Function SetTemplateInfo(report_book As Workbook, billing_year As String, billin
 
     ' 請求月の計算（請求月 = 調剤月の翌月）
     dispensing_month = billing_month_num - 1
-    If dispensing_month <= 0 Then
-        dispensing_year = billing_year_num - 1
+    If dispensing_month < 0 Then
+        dispensing_year = billing_year_num - 1  
         dispensing_month = 12
     Else
         dispensing_year = billing_year_num
@@ -402,8 +402,8 @@ Function SetTemplateInfo(report_book As Workbook, billing_year As String, billin
     Set ws_sub = report_book.Sheets(2)
 
     ' シート名変更（シート1を "R{令和YY}.{M}"形式, シート2を丸数字月に）
-    ws_main.Name = "R" & (billing_year_num - 2018) & "." & billing_month_num
-    ws_sub.Name = ConvertToCircledNumber(billing_month_num)
+    ws_main.Name = "R" & (dispensing_year - 2018) & "." & dispensing_month
+    ws_sub.Name = ConvertToCircledNumber(dispensing_month)
 
     ' 情報転記（ヘッダ部）
     ws_main.Range("G2").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
@@ -483,8 +483,12 @@ Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String)
 ImportError:
     MsgBox "CSVデータ読込中にエラーが発生しました: " & Err.Description, vbCritical, "エラー"
     If Not text_stream Is Nothing Then text_stream.Close
+    Set text_stream = Nothing
+    Set file_system_local = Nothing
+    Set column_map = Nothing
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
+    MsgBox "エラーが発生しました: " & Err.Description, vbCritical
 End Sub
 
 Function GetColumnMapping(file_type As String) As Object
@@ -547,7 +551,7 @@ Function GetColumnMapping(file_type As String) As Object
     Set GetColumnMapping = column_map
 End Function
 
-Function TransferBillingDetails(report_wb As Workbook, csv_file_name As String) As Boolean
+Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, era_year As String, dispensing_month As String)
     Dim ws_main As Worksheet, ws_details As Worksheet
     Dim csv_yymm As String
     Dim payer_type As String
@@ -555,13 +559,13 @@ Function TransferBillingDetails(report_wb As Workbook, csv_file_name As String) 
     Dim rebill_dict As Object, late_dict As Object, unpaid_dict As Object, assessment_dict As Object
     
     ' ワークシートの設定
-    Set ws_main = report_wb.Sheets(1)   ' メインシート
-    Set ws_details = report_wb.Sheets(2) ' 詳細データシート
+    Set ws_main = report_wb.Sheets("R" & era_year & "." & dispensing_month)   ' メインシート
+    Set ws_details = report_wb.Sheets(ConvertToCircledNumber(CInt(dispensing_month))) ' 詳細データシート
 
     ' 調剤年月と請求先区分の取得
     csv_yymm = GetDispenseYearMonth(ws_main)
     payer_type = GetPayerType(csv_file_name)
-    If payer_type = "労災" Then Exit Function ' 労災等は詳細シート対象外
+    If payer_type = "労災" Then Exit Sub ' 労災等は詳細シート対象外
 
     ' 詳細シート上の各カテゴリ開始行を取得
     Set start_row_dict = GetCategoryStartRows(ws_details, payer_type)
@@ -583,9 +587,7 @@ Function TransferBillingDetails(report_wb As Workbook, csv_file_name As String) 
 
     ' 完了メッセージ
     MsgBox payer_type & " のデータ転記が完了しました！", vbInformation, "処理完了"
-    
-    TransferBillingDetails = True
-End Function
+End Sub
 
 Private Function GetDispenseYearMonth(ws As Worksheet) As String
     GetDispenseYearMonth = ""
@@ -831,7 +833,9 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef ye
 End Function
 
 ' 長時間処理の進捗表示
-Application.StatusBar = "処理中... " & current & "/" & total
+Private Sub UpdateProgress(current As Long, total As Long)
+    Application.StatusBar = "処理中... " & current & "/" & total
+End Sub
 
 ' 元号コードから元号名を取得する関数を追加
 Private Function GetEraName(era_code As String) As String
