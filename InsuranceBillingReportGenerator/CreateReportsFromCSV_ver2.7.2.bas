@@ -249,7 +249,7 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         ImportCsvData file_obj.Path, ws_csv, file_type_name
 
         ' 詳細データを詳細シートに反映
-        TransferBillingDetails report_wb, file_obj.Name, era_year, dispensing_month
+        Call TransferBillingDetails(report_wb, file_obj.Name, era_year, dispensing_month)
 
         ' 保存してブックを閉じる
         report_wb.Save
@@ -564,7 +564,7 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     Dim era_year As Integer
     
     ' 西暦から和暦年を計算
-    era_year = CInt(dispensing_year) - 2018  ' 令和の場合
+    Call GetEraInfo(CInt(dispensing_year), era_code, era_year)
     
     ' ワークシートの設定
     Set ws_main = report_wb.Sheets("R" & era_year & "." & dispensing_month)   ' メインシート
