@@ -249,7 +249,7 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         ImportCsvData file_obj.Path, ws_csv, file_type_name
 
         ' 詳細データを詳細シートに反映
-        Call TransferBillingDetails report_wb, file_obj.Name, era_year, dispensing_month
+        TransferBillingDetails report_wb, file_obj.Name, era_year, dispensing_month
 
         ' 保存してブックを閉じる
         report_wb.Save
@@ -555,12 +555,16 @@ Function GetColumnMapping(file_type As String) As Object
     Set GetColumnMapping = column_map
 End Function
 
-Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, era_year As String, dispensing_month As String)
+Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispensing_year As String, dispensing_month As String)
     Dim ws_main As Worksheet, ws_details As Worksheet
     Dim csv_yymm As String
     Dim payer_type As String
     Dim start_row_dict As Object
     Dim rebill_dict As Object, late_dict As Object, unpaid_dict As Object, assessment_dict As Object
+    Dim era_year As Integer
+    
+    ' 西暦から和暦年を計算
+    era_year = CInt(dispensing_year) - 2018  ' 令和の場合
     
     ' ワークシートの設定
     Set ws_main = report_wb.Sheets("R" & era_year & "." & dispensing_month)   ' メインシート
