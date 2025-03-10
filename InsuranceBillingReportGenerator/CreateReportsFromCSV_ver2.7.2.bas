@@ -213,10 +213,10 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         Dim base_name As String, sheet_name As String
         Dim report_wb As Workbook
         Dim sheet_exists As Boolean
-        Dim era_year As String, dispensing_month As String
+        Dim era_year As String, dispensing_month As String, dispensing_year As String
 
         '出力先の報告書ファイル名（RYYMM形式）を生成
-        report_file_name = GetReportFileName(file_obj.Name, era_year, dispensing_month)
+        report_file_name = GetReportFileName(file_obj.Name, era_year, dispensing_month, dispensing_year)
         If report_file_name = "" Then
             MsgBox "ファイル " & file_obj.Name & " から診療年月を取得できませんでした。", vbExclamation, "エラー"
             GoTo NextFile
@@ -269,9 +269,9 @@ NextFile:
     Next file_obj
 End Sub
 
-Function GetReportFileName(file_name As String, ByRef era_year As String, ByRef dispensing_month As String) As String
+Function GetReportFileName(file_name As String, ByRef era_year As String, ByRef dispensing_month As String, ByRef dispensing_year As String) As String
     Dim report_code As String
-    report_code = GetDispensingYearMonthFromFileName(file_name, era_year, dispensing_month)
+    report_code = GetDispensingYearMonthFromFileName(file_name, era_year, dispensing_month, dispensing_year)
     If report_code = "" Then
         GetReportFileName = ""
     Else
@@ -279,7 +279,7 @@ Function GetReportFileName(file_name As String, ByRef era_year As String, ByRef 
     End If
 End Function
 
-Function GetDispensingYearMonthFromFileName(ByVal file_name As String, ByRef era_year As String, ByRef dispensing_month As String) As String
+Function GetDispensingYearMonthFromFileName(ByVal file_name As String, ByRef era_year As String, ByRef dispensing_month As String, ByRef dispensing_year As String) As String
     Dim base_name As String, file_type As String
     Dim western_year As Integer, western_month As Integer    ' 西暦表示の請求年月
     
@@ -361,6 +361,8 @@ Function GetDispensingYearMonthFromFileName(ByVal file_name As String, ByRef era
     Else
         new_era_code = "1": new_era_year = western_year - 1867   ' 明治
     End If
+    
+    dispensing_year = CStr(new_era_year)
     
     GetDispensingYearMonthFromFileName = "保険請求管理報告書_" & GetEraName(new_era_code) & new_era_year & "年" & dispensing_month & "月調剤分"
 End Function
