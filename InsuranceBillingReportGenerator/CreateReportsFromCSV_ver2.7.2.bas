@@ -123,8 +123,7 @@ End Function
 Function CreateReportFiles(file_system As Object, files As Collection, save_path As String, template_path As String)
     Dim file As Object
     Dim billing_year As String, billing_month As String
-    Dim dispensing_year As String, dispensing_month As String
-    Dim western_year As Integer, western_month As Integer
+    Dim era_letter As String, era_year_val As Integer, year_code As String
     
     For Each file In files
         ' CSVから年月を取得
@@ -136,14 +135,6 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
             If Len(file.Name) >= 25 Then
                 billing_year = Mid(file.Name, 18, 4)
                 billing_month = Mid(file.Name, 22, 2)
-                
-                ' 西暦に変換して調剤年月を計算
-                If ConvertToWesternDate(billing_year, billing_month, western_year, western_month) Then
-                    If Not CalcDispensingDate(western_year, western_month, dispensing_year, dispensing_month) Then
-                        MsgBox "調剤年月の計算に失敗しました。", vbExclamation
-                        Exit Function
-                    End If
-                End If
             End If
         ElseIf InStr(LCase(file.Name), "fmei") > 0 Then
             ' fmeiファイルの場合、18文字目以降からGYYMM形式で取得
@@ -747,57 +738,153 @@ Function GetStartRow(ws As Worksheet, category_name As String) As Long
     End If
 End Function
 
-' 年月変換用の共通関数
-Private Function ConvertToWesternDate(year_str As String, month_str As String, ByRef western_year As Integer, ByRef western_month As Integer) As Boolean
-    On Error GoTo ErrorHandler
-    
-    western_year = CInt(year_str)
-    western_month = CInt(month_str)
-    ConvertToWesternDate = True
-    Exit Function
-    
-ErrorHandler:
-    ConvertToWesternDate = False
+Function ConvertToWesternDate(dispensing_code As String) As String
+    Dim era_code As String, year_num As Integer, western_year As Integer, month_part As String
+    If Len(dispensing_code) < 5 Then
+        ConvertToWesternDate = ""
+        Exit Function
+    End If
+    era_code = Left(dispensing_code, 1)
+    year_num = CInt(Mid(dispensing_code, 2, 2))
+    month_part = Right(dispensing_code, 2)
+    Select Case era_code
+        Case "5": western_year = 2018 + year_num   ' 令和
+        Case "4": western_year = 1988 + year_num   ' 平成
+        Case "3": western_year = 1925 + year_num   ' 昭和
+        Case "2": western_year = 1911 + year_num   ' 大正
+        Case "1": western_year = 1867 + year_num   ' 明治
+        Case Else: western_year = 2000 + year_num
+    End Select
+    ConvertToWesternDate = Right(CStr(western_year), 2) & "." & month_part
 End Function
 
-' 西暦から調剤年月を計算
-Private Function CalcDispensingDate(western_year As Integer, western_month As Integer, _
-    ByRef dispensing_year As String, ByRef dispensing_month As String) As Boolean
+' ファイルコレクションをソートする関数
+Function SortFileCollection(files As Collection, file_system As Object, file_type As String) As Collection
+    Dim sorted_files As New Collection
+    Dim file_array() As Object
+    Dim i As Long, count As Long
     
-    Dim temp_year As Integer, temp_month As Integer
-    
-    ' 請求月から調剤月を計算（前月が調剤月）
-    temp_month = western_month - 1
-    If temp_month < 1 Then
-        temp_month = 12
-        temp_year = western_year - 1
-    Else
-        temp_year = western_year
+    ' Collectionの要素数を取得
+    count = files.Count
+    If count = 0 Then
+        Set SortFileCollection = sorted_files
+        Exit Function
     End If
     
-    dispensing_year = CStr(temp_year)
-    dispensing_month = Format(temp_month, "00")
-    CalcDispensingDate = True
+    ' 配列を初期化
+    ReDim file_array(1 To count)
+    
+    ' CollectionをArrayにコピー
+    For i = 1 To count
+        Set file_array(i) = files(i)
+    Next i
+    
+    ' バブルソートで年月順にソート
+    Dim j As Long
+    For i = 1 To count - 1
+        For j = 1 To count - i
+            Dim year1 As String, month1 As String
+            Dim year2 As String, month2 As String
+            
+            If GetYearMonthFromFile(file_array(j).Path, file_type, year1, month1) And _
+               GetYearMonthFromFile(file_array(j + 1).Path, file_type, year2, month2) Then
+                
+                ' 年月を結合して比較（例：202402）
+                If (year1 & Format(CInt(month1), "00")) > (year2 & Format(CInt(month2), "00")) Then
+                    ' 順序が逆の場合、要素を交換
+                    Dim temp_obj As Object
+                    Set temp_obj = file_array(j)
+                    Set file_array(j) = file_array(j + 1)
+                    Set file_array(j + 1) = temp_obj
+                End If
+            End If
+        Next j
+    Next i
+    
+    ' ソートされた配列を新しいCollectionに追加
+    For i = 1 To count
+        sorted_files.Add file_array(i)
+    Next i
+    
+    Set SortFileCollection = sorted_files
 End Function
 
-' 調剤年月から請求年月を計算
-Private Function CalcBillingDate(western_year As Integer, western_month As Integer, _
-    ByRef billing_year As String, ByRef billing_month As String) As Boolean
+Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef year_str As String, ByRef month_str As String) As Boolean
+    Dim file_name As String, base_name As String
+    year_str = "": month_str = ""
     
-    Dim temp_year As Integer, temp_month As Integer
+    file_name = Right(file_path, Len(file_path) - InStrRev(file_path, "\"))
+    base_name = file_name
+    If InStr(file_name, ".") > 0 Then base_name = Left(file_name, InStrRev(file_name, ".") - 1)
     
-    ' 調剤月から請求月を計算（翌月が請求月）
-    temp_month = western_month + 1
-    If temp_month > 12 Then
-        temp_month = 1
-        temp_year = western_year + 1
+    Select Case LCase(file_type)
+        Case "fixf"
+            ' fixfファイルの場合、18文字目以降からYYYYMMDDhhmmss形式で取得
+            If Len(file_name) >= 25 Then
+                year_str = Mid(file_name, 18, 4)
+                month_str = Mid(file_name, 22, 2)
+                GetYearMonthFromFile = True
+            End If
+            
+        Case "fmei", "henr", "zogn"
+            ' fmei/henr/zognファイルの場合、末尾5文字からGYYMM形式で取得
+            Dim code_part As String
+            code_part = Right(base_name, 5)
+            If Len(code_part) = 5 And IsNumeric(code_part) Then
+                Dim era_code As String, yy As String, mm As String
+                era_code = Left(code_part, 1)
+                yy = Mid(code_part, 2, 2)
+                mm = Right(code_part, 2)
+                
+                ' 元号コードから西暦年を計算
+                Select Case era_code
+                    Case "5": year_str = CStr(2018 + CInt(yy))  ' 令和
+                    Case "4": year_str = CStr(1988 + CInt(yy))  ' 平成
+                    Case "3": year_str = CStr(1925 + CInt(yy))  ' 昭和
+                    Case "2": year_str = CStr(1911 + CInt(yy))  ' 大正
+                    Case "1": year_str = CStr(1867 + CInt(yy))  ' 明治
+                End Select
+                month_str = mm
+                GetYearMonthFromFile = True
+            End If
+    End Select
+End Function
+
+' 長時間処理の進捗表示
+Private Sub UpdateProgress(current As Long, total As Long, message As String)
+    Application.StatusBar = message & " - " & current & "/" & total
+End Sub
+
+' 元号コードから元号名を取得する関数を追加
+Private Function GetEraName(era_code As String) As String
+    Select Case era_code
+        Case "5": GetEraName = "令和"
+        Case "4": GetEraName = "平成"
+        Case "3": GetEraName = "昭和"
+        Case "2": GetEraName = "大正"
+        Case "1": GetEraName = "明治"
+        Case Else: GetEraName = "不明"
+    End Select
+End Function
+
+' 西暦から元号コードと年を取得する関数を追加
+Private Function GetEraInfo(western_year As Integer, ByRef era_code As String, ByRef era_year As Integer) As Boolean
+    If western_year >= 2019 Then
+        era_code = "5": era_year = western_year - 2018   ' 令和
+    ElseIf western_year >= 1989 Then
+        era_code = "4": era_year = western_year - 1988   ' 平成
+    ElseIf western_year >= 1926 Then
+        era_code = "3": era_year = western_year - 1925   ' 昭和
+    ElseIf western_year >= 1912 Then
+        era_code = "2": era_year = western_year - 1911   ' 大正
+    ElseIf western_year >= 1868 Then
+        era_code = "1": era_year = western_year - 1867   ' 明治
     Else
-        temp_year = western_year
+        era_code = "0": era_year = 0
+        GetEraInfo = False
+        Exit Function
     End If
-    
-    billing_year = CStr(temp_year)
-    billing_month = Format(temp_month, "00")
-    CalcBillingDate = True
+    GetEraInfo = True
 End Function
 
 ' ファイル名を生成する関数を修正
@@ -851,119 +938,4 @@ End Function
 
 Private Sub CreateBackup(file_path As String)
     ' ファイルのバックアップを作成
-End Sub
-
-' 元号コードから元号名を取得する関数を追加
-Private Function GetEraName(era_code As String) As String
-    Select Case era_code
-        Case "5": GetEraName = "令和"
-        Case "4": GetEraName = "平成"
-        Case "3": GetEraName = "昭和"
-        Case "2": GetEraName = "大正"
-        Case "1": GetEraName = "明治"
-        Case Else: GetEraName = "不明"
-    End Select
-End Function
-
-' 西暦から元号コードと年を取得する関数を追加
-Private Function GetEraInfo(western_year As Integer, ByRef era_code As String, ByRef era_year As Integer) As Boolean
-    If western_year >= 2019 Then
-        era_code = "5": era_year = western_year - 2018   ' 令和
-    ElseIf western_year >= 1989 Then
-        era_code = "4": era_year = western_year - 1988   ' 平成
-    ElseIf western_year >= 1926 Then
-        era_code = "3": era_year = western_year - 1925   ' 昭和
-    ElseIf western_year >= 1912 Then
-        era_code = "2": era_year = western_year - 1911   ' 大正
-    ElseIf western_year >= 1868 Then
-        era_code = "1": era_year = western_year - 1867   ' 明治
-    Else
-        era_code = "0": era_year = 0
-        GetEraInfo = False
-        Exit Function
-    End If
-    GetEraInfo = True
-End Function
-
-' ファイルコレクションをソートする関数
-Function SortFileCollection(files As Collection, file_system As Object, file_type As String) As Collection
-    Dim sorted_files As New Collection
-    Dim file_obj As Object
-    
-    ' 既存のコレクションを新しいコレクションにコピー
-    For Each file_obj In files
-        sorted_files.Add file_obj
-    Next
-    
-    ' バブルソートで年月順にソート
-    Dim i As Long, j As Long
-    For i = 1 To sorted_files.Count - 1
-        For j = i + 1 To sorted_files.Count
-            Dim year1 As String, month1 As String
-            Dim year2 As String, month2 As String
-            
-            If GetYearMonthFromFile(sorted_files(i).Path, file_type, year1, month1) And _
-               GetYearMonthFromFile(sorted_files(j).Path, file_type, year2, month2) Then
-                
-                ' 年月を結合して比較（例：202402）
-                If (year1 & Format(CInt(month1), "00")) > (year2 & Format(CInt(month2), "00")) Then
-                    ' 順序が逆の場合、要素を交換
-                    Dim temp_obj As Object
-                    Set temp_obj = sorted_files(i)
-                    sorted_files.Remove i
-                    sorted_files.Add temp_obj, , , j
-                    sorted_files.Remove j + 1
-                    sorted_files.Add file_obj, , i
-                End If
-            End If
-        Next j
-    Next i
-    
-    Set SortFileCollection = sorted_files
-End Function
-
-Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef year_str As String, ByRef month_str As String) As Boolean
-    Dim file_name As String, base_name As String
-    year_str = "": month_str = ""
-    
-    file_name = Right(file_path, Len(file_path) - InStrRev(file_path, "\"))
-    base_name = file_name
-    If InStr(file_name, ".") > 0 Then base_name = Left(file_name, InStrRev(file_name, ".") - 1)
-    
-    Select Case LCase(file_type)
-        Case "fixf"
-            ' fixfファイルの場合、18文字目以降からYYYYMMDDhhmmss形式で取得
-            If Len(file_name) >= 25 Then
-                year_str = Mid(file_name, 18, 4)
-                month_str = Mid(file_name, 22, 2)
-                GetYearMonthFromFile = True
-            End If
-            
-        Case "fmei", "henr", "zogn"
-            ' fmei/henr/zognファイルの場合、末尾5文字からGYYMM形式で取得
-            Dim code_part As String
-            code_part = Right(base_name, 5)
-            If Len(code_part) = 5 And IsNumeric(code_part) Then
-                Dim era_code As String, yy As String, mm As String
-                era_code = Left(code_part, 1)
-                yy = Mid(code_part, 2, 2)
-                mm = Right(code_part, 2)
-                
-                ' 元号コードから西暦年を計算
-                Select Case era_code
-                    Case "5": year_str = CStr(2018 + CInt(yy))  ' 令和
-                    Case "4": year_str = CStr(1988 + CInt(yy))  ' 平成
-                    Case "3": year_str = CStr(1925 + CInt(yy))  ' 昭和
-                    Case "2": year_str = CStr(1911 + CInt(yy))  ' 大正
-                    Case "1": year_str = CStr(1867 + CInt(yy))  ' 明治
-                End Select
-                month_str = mm
-                GetYearMonthFromFile = True
-            End If
-    End Select
-End Function
-
-' 長時間処理の進捗表示
-Private Sub UpdateProgress(current As Long, total As Long, message As String)
-    Application.StatusBar = message & " - " & current & "/" & total
 End Sub
