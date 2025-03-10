@@ -10,6 +10,8 @@ Dim template_path As String
 Dim save_path As String
 
 Sub CreateReportsFromCSV()
+    On Error GoTo ErrorHandler
+    
     ' パスの設定
     template_path = ThisWorkbook.Sheets("設定").Range("B2").Value & "\保険請求管理報告書テンプレート20250222.xltm"
     save_path = ThisWorkbook.Sheets("設定").Range("B3").Value
@@ -91,6 +93,19 @@ Sub CreateReportsFromCSV()
     
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "メイン処理でエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description & vbCrLf & _
+           "発生箇所: CreateReportsFromCSV", _
+           vbCritical, "エラー"
+    
+    ' クリーンアップ処理
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    Application.StatusBar = False
 End Sub
 
 Function SelectCsvFolder() As String
@@ -121,52 +136,83 @@ Function IsFolderEmpty(folder_path As String) As Boolean
 End Function
 
 Function CreateReportFiles(file_system As Object, files As Collection, save_path As String, template_path As String)
+    On Error GoTo ErrorHandler
+    
+    ' テンプレートファイルの存在確認を追加
+    If Not file_system.FileExists(template_path) Then
+        MsgBox "テンプレートファイルが見つかりません。" & vbCrLf & _
+               "パス: " & template_path & vbCrLf & _
+               "発生箇所: CreateReportFiles", _
+               vbCritical, "エラー"
+        Exit Function
+    End If
+    
+    ' 保存先フォルダの存在確認を追加
+    If Not file_system.FolderExists(save_path) Then
+        MsgBox "保存先フォルダが見つかりません。" & vbCrLf & _
+               "パス: " & save_path & vbCrLf & _
+               "発生箇所: CreateReportFiles", _
+               vbCritical, "エラー"
+        Exit Function
+    End If
+    
     Dim file As Object
     Dim billing_year As String, billing_month As String
     Dim era_letter As String, era_year_val As Integer, year_code As String
     
     For Each file In files
+        On Error GoTo ErrorHandler
+        
         ' CSVから年月を取得
         billing_year = "": billing_month = ""
         
         ' ファイル種類によって年月取得方法を変える
         If InStr(LCase(file.Name), "fixf") > 0 Then
-            ' fixfファイルの場合、18文字目以降からYYYYMMDDhhmmss形式で取得
-            If Len(file.Name) >= 25 Then
-                billing_year = Mid(file.Name, 18, 4)
-                billing_month = Mid(file.Name, 22, 2)
+            If Len(file.Name) < 25 Then
+                MsgBox "FIXFファイルの形式が不正です。" & vbCrLf & _
+                       "ファイル名: " & file.Name & vbCrLf & _
+                       "必要な長さ: 25文字以上", _
+                       vbExclamation, "CreateReportFiles - エラー"
+                GoTo NextFile
             End If
+            billing_year = Mid(file.Name, 18, 4)
+            billing_month = Mid(file.Name, 22, 2)
+            
         ElseIf InStr(LCase(file.Name), "fmei") > 0 Then
-            ' fmeiファイルの場合、18文字目以降からGYYMM形式で取得
-            If Len(file.Name) >= 22 Then
-                Dim era_code As String
-                era_code = Mid(file.Name, 18, 1)
-                billing_month = Mid(file.Name, 21, 2)
-                
-                ' 元号コードを設定
-                Select Case era_code
-                    Case "5"  ' 令和
-                        era_letter = "R"
-                        era_year_val = CInt(Mid(file.Name, 19, 2))
-                        billing_year = CStr(2018 + era_year_val)
-                    Case "4"  ' 平成
-                        era_letter = "H"
-                        era_year_val = CInt(Mid(file.Name, 19, 2))
-                        billing_year = CStr(1988 + era_year_val)
-                    Case "3"  ' 昭和
-                        era_letter = "S"
-                        era_year_val = CInt(Mid(file.Name, 19, 2))
-                        billing_year = CStr(1925 + era_year_val)
-                    Case "2"  ' 大正
-                        era_letter = "T"
-                        era_year_val = CInt(Mid(file.Name, 19, 2))
-                        billing_year = CStr(1911 + era_year_val)
-                    Case "1"  ' 明治
-                        era_letter = "M"
-                        era_year_val = CInt(Mid(file.Name, 19, 2))
-                        billing_year = CStr(1867 + era_year_val)
-                End Select
+            If Len(file.Name) < 22 Then
+                MsgBox "FMEIファイルの形式が不正です。" & vbCrLf & _
+                       "ファイル名: " & file.Name & vbCrLf & _
+                       "必要な長さ: 22文字以上", _
+                       vbExclamation, "CreateReportFiles - エラー"
+                GoTo NextFile
             End If
+            Dim era_code As String
+            era_code = Mid(file.Name, 18, 1)
+            billing_month = Mid(file.Name, 21, 2)
+            
+            ' 元号コードを設定
+            Select Case era_code
+                Case "5"  ' 令和
+                    era_letter = "R"
+                    era_year_val = CInt(Mid(file.Name, 19, 2))
+                    billing_year = CStr(2018 + era_year_val)
+                Case "4"  ' 平成
+                    era_letter = "H"
+                    era_year_val = CInt(Mid(file.Name, 19, 2))
+                    billing_year = CStr(1988 + era_year_val)
+                Case "3"  ' 昭和
+                    era_letter = "S"
+                    era_year_val = CInt(Mid(file.Name, 19, 2))
+                    billing_year = CStr(1925 + era_year_val)
+                Case "2"  ' 大正
+                    era_letter = "T"
+                    era_year_val = CInt(Mid(file.Name, 19, 2))
+                    billing_year = CStr(1911 + era_year_val)
+                Case "1"  ' 明治
+                    era_letter = "M"
+                    era_year_val = CInt(Mid(file.Name, 19, 2))
+                    billing_year = CStr(1867 + era_year_val)
+            End Select
         End If
         
         If billing_year <> "" And billing_month <> "" Then
@@ -174,10 +220,10 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
             
             ' 報告書ファイル名を生成
             Dim report_file_name As String, report_file_path As String
-            report_file_name = GetReportFileName(CInt(billing_year), CInt(billing_month))
+            report_file_name = GenerateReportFileNameFromBillingDate(CInt(billing_year), CInt(billing_month))
             If report_file_name = "" Then
                 MsgBox "ファイル名の生成に失敗しました。", vbExclamation, "エラー"
-                Exit Function
+                GoTo NextFile  ' エラー時は次のファイルへ
             End If
             report_file_path = save_path & "\" & report_file_name
             
@@ -194,19 +240,25 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                     SetTemplateInfo report_wb, billing_year, billing_month
                     Application.DisplayAlerts = True
                 End If
-                Exit Function
-
-ErrorHandler:
-                If Not report_wb Is Nothing Then
-                    report_wb.Close SaveChanges:=False
-                    Set report_wb = Nothing
-                End If
             End If
         End If
+NextFile:
     Next file
+    Exit Function
+
+ErrorHandler:
+    MsgBox "レポートファイル作成中にエラーが発生しました。" & vbCrLf & _
+           "ファイル: " & IIf(Not file Is Nothing, file.Name, "不明") & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description & vbCrLf & _
+           "発生箇所: CreateReportFiles", _
+           vbCritical, "エラー"
+    Resume NextFile
 End Function
 
-Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_type_name As String)
+Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_type_name As String)
+    On Error GoTo ErrorHandler
+    
     Dim file_obj As Object
     For Each file_obj In csv_files
         Dim report_file_name As String, report_file_path As String
@@ -218,17 +270,21 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         Dim dispensing_year As String, dispensing_month As String
 
         ' CSVファイル名から請求年月を取得
-        If Not ParseReportFileName(file_obj.Name, western_year, month) Then
+        Dim year_str As String, month_str As String
+        If Not GetYearMonthFromFile(file_obj.Path, file_type_name, year_str, month_str) Then
             MsgBox "ファイル " & file_obj.Name & " から診療年月を取得できませんでした。", vbExclamation, "エラー"
             GoTo NextFile
         End If
+        
+        western_year = CInt(year_str)
+        month = CInt(month_str)
         
         ' 請求年月を設定
         billing_year = CStr(western_year)
         billing_month = CStr(month)
         
         ' 報告書ファイル名を生成
-        report_file_name = GenerateReportFileName(western_year, month)
+        report_file_name = GenerateReportFileNameFromBillingDate(western_year, month)
         If report_file_name = "" Then
             MsgBox "ファイル名の生成に失敗しました。", vbExclamation, "エラー"
             GoTo NextFile
@@ -272,7 +328,7 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
 
         ' オブジェクトの解放処理を追加
         Set report_wb = Nothing
-        Exit Sub
+        Exit Function
 
 ErrorHandler:
         If Not report_wb Is Nothing Then
@@ -282,63 +338,55 @@ ErrorHandler:
 NextFile:
         ' 次のCSVファイルへ
     Next file_obj
-End Sub
+End Function
 
 ' 報告書ファイル名を生成する関数
-Function GetReportFileName(ByVal billing_year As Integer, ByVal billing_month As Integer) As String
+Function GenerateReportFileNameFromBillingDate(ByVal billing_year As Integer, ByVal billing_month As Integer) As String
+    ' 入力値の検証を追加
+    If billing_year < 1868 Or billing_year > 2100 Then
+        MsgBox "無効な年が指定されました。" & vbCrLf & _
+               "年: " & billing_year & vbCrLf & _
+               "発生箇所: GenerateReportFileNameFromBillingDate", _
+               vbExclamation, "エラー"
+        GenerateReportFileNameFromBillingDate = ""
+        Exit Function
+    End If
+    
+    If billing_month < 1 Or billing_month > 12 Then
+        MsgBox "無効な月が指定されました。" & vbCrLf & _
+               "月: " & billing_month & vbCrLf & _
+               "発生箇所: GenerateReportFileNameFromBillingDate", _
+               vbExclamation, "エラー"
+        GenerateReportFileNameFromBillingDate = ""
+        Exit Function
+    End If
+    
     Dim dispensing_year As String, dispensing_month As String
-    Dim era_code As String, era_year As Integer
+    Dim era_info As Object
     
     ' 請求年月から調剤年月を計算
     If Not CalculateDispensingDate(billing_year, billing_month, dispensing_year, dispensing_month) Then
-        GetReportFileName = ""
+        MsgBox "調剤年月の計算に失敗しました。" & vbCrLf & _
+               "請求年月: " & billing_year & "年" & billing_month & "月", _
+               vbExclamation, "GenerateReportFileNameFromBillingDate - エラー"
+        GenerateReportFileNameFromBillingDate = ""
         Exit Function
     End If
     
     ' 調剤年（西暦）から元号情報を取得
-    If GetEraInfo(CInt(dispensing_year), era_code, era_year) Then
-        GetReportFileName = "保険請求管理報告書_" & _
-                                GetEraName(era_code) & _
-                                Format(era_year, "00") & "年" & _
-                                Format(CInt(dispensing_month), "00") & "月調剤分.xlsm"
-    Else
-        GetReportFileName = ""
+    Set era_info = ConvertEraYear(CInt(dispensing_year), True)
+    If era_info("era") = "" Then
+        MsgBox "元号への変換に失敗しました。" & vbCrLf & _
+               "調剤年月: " & dispensing_year & "年" & dispensing_month & "月", _
+               vbExclamation, "GenerateReportFileNameFromBillingDate - エラー"
+        GenerateReportFileNameFromBillingDate = ""
+        Exit Function
     End If
-End Function
-
-' ファイル名から年月を取得する関数
-Function ParseReportFileName(ByVal file_name As String, ByRef western_year As Integer, ByRef month As Integer) As Boolean
-    Dim matches As Object
-    Dim regex As Object
-    Set regex = CreateObject("VBScript.RegExp")
     
-    ' 正規表現パターン: 保険請求管理報告書_(令和|平成|昭和|大正|明治)(\d{2})年(\d{2})月調剤分
-    regex.Pattern = "保険請求管理報告書_(令和|平成|昭和|大正|明治)(\d{2})年(\d{2})月調剤分"
-    regex.Global = False
-    
-    If regex.Test(file_name) Then
-        Set matches = regex.Execute(file_name)
-        Dim era_name As String, era_year As String, month_str As String
-        
-        era_name = matches(0).SubMatches(0)
-        era_year = matches(0).SubMatches(1)
-        month_str = matches(0).SubMatches(2)
-        
-        ' 元号から西暦を計算
-        Select Case era_name
-            Case "令和": western_year = 2018 + CInt(era_year)
-            Case "平成": western_year = 1988 + CInt(era_year)
-            Case "昭和": western_year = 1925 + CInt(era_year)
-            Case "大正": western_year = 1911 + CInt(era_year)
-            Case "明治": western_year = 1867 + CInt(era_year)
-            Case Else: ParseReportFileName = False: Exit Function
-        End Select
-        
-        month = CInt(month_str)
-        ParseReportFileName = True
-    Else
-        ParseReportFileName = False
-    End If
+    GenerateReportFileNameFromBillingDate = "保険請求管理報告書_" & _
+                            era_info("era") & _
+                            Format(era_info("year"), "00") & "年" & _
+                            Format(CInt(dispensing_month), "00") & "月調剤分.xlsm"
 End Function
 
 Function ConvertEraYearToWestern(ByVal era_code As String, ByVal era_year As String) As Integer
@@ -916,3 +964,16 @@ Private Function CalculateEraYear(ByVal western_year As Integer) As Integer
         CalculateEraYear = 0
     End If
 End Function
+
+' オブジェクト解放用の関数を追加
+Private Sub CleanupObjects(ParamArray objects() As Variant)
+    Dim obj As Variant
+    For Each obj In objects
+        If Not obj Is Nothing Then
+            If TypeName(obj) = "Workbook" Then
+                obj.Close SaveChanges:=False
+            End If
+            Set obj = Nothing
+        End If
+    Next obj
+End Sub
