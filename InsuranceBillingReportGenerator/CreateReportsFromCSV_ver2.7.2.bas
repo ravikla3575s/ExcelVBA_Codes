@@ -268,42 +268,23 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         Dim base_name As String, sheet_name As String
         Dim report_wb As Workbook
         Dim sheet_exists As Boolean
-        Dim western_year As Integer, month As Integer
-        Dim billing_year As String, billing_month As String
-        Dim dispensing_year As String, dispensing_month As String
+        Dim dispensing_year As Integer, dispensing_month As Integer
 
-        ' CSVファイル名から請求年月を取得
-        Dim year_str As String, month_str As String
-        If Not GetYearMonthFromFile(file_obj.Path, file_type_name, year_str, month_str) Then
-            MsgBox "ファイル " & file_obj.Name & " から診療年月を取得できませんでした。", vbExclamation, "エラー"
+        ' CSVファイル名から調剤年月を取得
+        If Not GetYearMonthFromFile(file_obj.Path, file_type_name, dispensing_year, dispensing_month) Then
+            MsgBox "ファイル " & file_obj.Name & " から調剤年月を取得できませんでした。", vbExclamation, "エラー"
             GoTo NextFile
         End If
         
-        western_year = CInt(year_str)
-        month = CInt(month_str)
-        
-        ' 請求年月を設定
-        billing_year = CStr(western_year)
-        billing_month = CStr(month)
-        
         ' 報告書ファイル名を生成
-        report_file_name = GenerateReportFileNameFromBillingDate(western_year, month)
+        report_file_name = GenerateReportFileNameFromDispensingDate(dispensing_year, dispensing_month)
         If report_file_name = "" Then
             MsgBox "ファイル名の生成に失敗しました。", vbExclamation, "エラー"
             GoTo NextFile
         End If
         
-        ' 調剤年月を計算
-        Call CalculateDispensingDate(western_year, month, dispensing_year, dispensing_month)
-        
         report_file_path = save_path & "\" & report_file_name
-
-        ' 追加すべきチェック
-        If Not file_system.FileExists(report_file_path) Then
-            MsgBox "ファイルが存在しません: " & report_file_path, vbExclamation
-            GoTo NextFile
-        End If
-
+        
         ' ワークブックを開く処理を先に行う
         On Error GoTo ErrorHandler
         Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=True)
@@ -323,7 +304,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         ImportCsvData file_obj.Path, ws_csv, file_type_name
 
         ' 詳細データを詳細シートに反映
-        Call TransferBillingDetails(report_wb, file_obj.Name, dispensing_year, dispensing_month)
+        Call TransferBillingDetails(report_wb, file_obj.Name, CStr(dispensing_year), Format(dispensing_month, "00"))
 
         ' 保存してブックを閉じる
         report_wb.Save
@@ -343,50 +324,50 @@ NextFile:
     Next file_obj
 End Function
 
-' 報告書ファイル名を生成する関数
-Function GenerateReportFileNameFromBillingDate(ByVal billing_year As Integer, ByVal billing_month As Integer) As String
+' 報告書ファイル名を生成する関数（引数名を変更）
+Function GenerateReportFileNameFromDispensingDate(ByVal dispensing_year As Integer, ByVal dispensing_month As Integer) As String
     ' 入力値の検証を追加
-    If billing_year < 1868 Or billing_year > 2100 Then
+    If dispensing_year < 1868 Or dispensing_year > 2100 Then
         MsgBox "無効な年が指定されました。" & vbCrLf & _
-               "年: " & billing_year & vbCrLf & _
-               "発生箇所: GenerateReportFileNameFromBillingDate", _
+               "年: " & dispensing_year & vbCrLf & _
+               "発生箇所: GenerateReportFileNameFromDispensingDate", _
                vbExclamation, "エラー"
-        GenerateReportFileNameFromBillingDate = ""
+        GenerateReportFileNameFromDispensingDate = ""
         Exit Function
     End If
     
-    If billing_month < 1 Or billing_month > 12 Then
+    If dispensing_month < 1 Or dispensing_month > 12 Then
         MsgBox "無効な月が指定されました。" & vbCrLf & _
-               "月: " & billing_month & vbCrLf & _
-               "発生箇所: GenerateReportFileNameFromBillingDate", _
+               "月: " & dispensing_month & vbCrLf & _
+               "発生箇所: GenerateReportFileNameFromDispensingDate", _
                vbExclamation, "エラー"
-        GenerateReportFileNameFromBillingDate = ""
+        GenerateReportFileNameFromDispensingDate = ""
         Exit Function
     End If
     
-    Dim dispensing_year As String, dispensing_month As String
+    Dim dispensing_ym As String
     Dim era_info As Object
     
-    ' 請求年月から調剤年月を計算
-    If Not CalculateDispensingDate(billing_year, billing_month, dispensing_year, dispensing_month) Then
+    ' 調剤年月を計算
+    If Not CalculateDispensingDate(dispensing_year, dispensing_month, dispensing_year, dispensing_month) Then
         MsgBox "調剤年月の計算に失敗しました。" & vbCrLf & _
-               "請求年月: " & billing_year & "年" & billing_month & "月", _
-               vbExclamation, "GenerateReportFileNameFromBillingDate - エラー"
-        GenerateReportFileNameFromBillingDate = ""
+               "調剤年月: " & dispensing_year & "年" & dispensing_month & "月", _
+               vbExclamation, "GenerateReportFileNameFromDispensingDate - エラー"
+        GenerateReportFileNameFromDispensingDate = ""
         Exit Function
     End If
     
     ' 調剤年（西暦）から元号情報を取得
-    Set era_info = ConvertEraYear(CInt(dispensing_year), True)
+    Set era_info = ConvertEraYear(dispensing_year, True)
     If era_info("era") = "" Then
         MsgBox "元号への変換に失敗しました。" & vbCrLf & _
                "調剤年月: " & dispensing_year & "年" & dispensing_month & "月", _
-               vbExclamation, "GenerateReportFileNameFromBillingDate - エラー"
-        GenerateReportFileNameFromBillingDate = ""
+               vbExclamation, "GenerateReportFileNameFromDispensingDate - エラー"
+        GenerateReportFileNameFromDispensingDate = ""
         Exit Function
     End If
     
-    GenerateReportFileNameFromBillingDate = "保険請求管理報告書_" & _
+    GenerateReportFileNameFromDispensingDate = "保険請求管理報告書_" & _
                             era_info("era") & _
                             Format(era_info("year"), "00") & "年" & _
                             Format(CInt(dispensing_month), "00") & "月調剤分.xlsm"
@@ -869,43 +850,65 @@ Function SortFileCollection(files As Collection, file_system As Object, file_typ
     Set SortFileCollection = sorted_files
 End Function
 
-Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef year_str As String, ByRef month_str As String) As Boolean
+Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef dispensing_year As Integer, ByRef dispensing_month As Integer) As Boolean
     Dim file_name As String, base_name As String
-    year_str = "": month_str = ""
+    dispensing_year = 0: dispensing_month = 0
     
     file_name = Right(file_path, Len(file_path) - InStrRev(file_path, "\"))
     base_name = file_name
-    If InStr(file_name, ".") > 0 Then base_name = Left(file_name, InStrRev(file_name, ".") - 1)
+    If InStr(file_name, ".") > 0 Then
+        base_name = Left(file_name, InStrRev(file_name, ".") - 1)
+    End If
     
     Select Case LCase(file_type)
         Case "fixf"
-            ' fixfファイルの場合、18文字目以降からYYYYMMDDhhmmss形式で取得
+            ' fixfファイルの場合、請求年月から調剤年月を計算
             If Len(file_name) >= 25 Then
-                year_str = Mid(file_name, 18, 4)
-                month_str = Mid(file_name, 22, 2)
+                Dim billing_year As Integer, billing_month As Integer
+                billing_year = CInt(Mid(file_name, 18, 4))
+                billing_month = CInt(Mid(file_name, 22, 2))
+                
+                ' 調剤年月を計算（請求月の前月）
+                If billing_month = 1 Then
+                    dispensing_year = billing_year - 1
+                    dispensing_month = 12
+                Else
+                    dispensing_year = billing_year
+                    dispensing_month = billing_month - 1
+                End If
                 GetYearMonthFromFile = True
             End If
             
         Case "fmei", "henr", "zogn"
-            ' fmei/henr/zognファイルの場合、末尾5文字からGYYMM形式で取得
-            Dim code_part As String
-            code_part = Right(base_name, 5)
-            If Len(code_part) = 5 And IsNumeric(code_part) Then
-                Dim era_code As String, yy As String, mm As String
-                era_code = Left(code_part, 1)
-                yy = Mid(code_part, 2, 2)
-                mm = Right(code_part, 2)
-                
-                ' 元号コードから西暦年を計算
-                Select Case era_code
-                    Case "5": year_str = CStr(2018 + CInt(yy))  ' 令和
-                    Case "4": year_str = CStr(1988 + CInt(yy))  ' 平成
-                    Case "3": year_str = CStr(1925 + CInt(yy))  ' 昭和
-                    Case "2": year_str = CStr(1911 + CInt(yy))  ' 大正
-                    Case "1": year_str = CStr(1867 + CInt(yy))  ' 明治
-                End Select
-                month_str = mm
-                GetYearMonthFromFile = True
+            ' fmei/henr/zognファイルの場合も請求年月から調剤年月を計算
+            If Len(base_name) >= 5 And IsNumeric(Right(base_name, 5)) Then
+                Dim code_part As String
+                code_part = Right(base_name, 5)
+                If Len(code_part) = 5 And IsNumeric(code_part) Then
+                    Dim era_code As String, era_year As Integer
+                    era_code = Left(code_part, 1)
+                    era_year = CInt(Mid(code_part, 2, 2))
+                    billing_month = CInt(Right(code_part, 2))
+                    
+                    ' 元号コードから西暦年を計算（請求年）
+                    Select Case era_code
+                        Case "5": billing_year = 2018 + era_year  ' 令和
+                        Case "4": billing_year = 1988 + era_year  ' 平成
+                        Case "3": billing_year = 1925 + era_year  ' 昭和
+                        Case "2": billing_year = 1911 + era_year  ' 大正
+                        Case "1": billing_year = 1867 + era_year  ' 明治
+                    End Select
+
+                    ' 調剤年月を計算（請求月の前月）
+                    If billing_month = 1 Then
+                        dispensing_year = billing_year - 1
+                        dispensing_month = 12
+                    Else
+                        dispensing_year = billing_year
+                        dispensing_month = billing_month - 1
+                    End If
+                    GetYearMonthFromFile = True
+                End If
             End If
     End Select
 End Function
