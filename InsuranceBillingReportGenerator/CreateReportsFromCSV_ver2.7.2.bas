@@ -6,8 +6,10 @@ Const REQUIRED_SHEETS_COUNT As Integer = 6
 Const BASE_DETAIL_ROWS As Integer = 4
 
 ' テンプレート・保存先パス
-Private Const TEMPLATE_PATH As String = ThisWorkbook.Sheets("設定").Range("B2").Value & "\保険請求管理報告書テンプレート20250222.xltm"
-Private Const SAVE_PATH As String = ThisWorkbook.Sheets("設定").Range("B3").Value
+Dim template_path As String
+Dim save_path As String
+template_path = ThisWorkbook.Sheets("設定").Range("B2").Value & "\保険請求管理報告書テンプレート20250222.xltm"
+save_path = ThisWorkbook.Sheets("設定").Range("B3").Value
 
 Sub CreateReportsFromCSV()
     Application.ScreenUpdating = False
@@ -31,7 +33,7 @@ Sub CreateReportsFromCSV()
     End If
 
     ' 3. テンプレートパス・保存先フォルダの存在確認
-    If TEMPLATE_PATH = "" Or SAVE_PATH = "" Then
+    If template_path = "" Or save_path = "" Then
         MsgBox "テンプレートパスまたは保存先フォルダが設定されていません。", vbExclamation, "エラー"
         Exit Sub
     End If
@@ -67,10 +69,10 @@ Sub CreateReportsFromCSV()
 
     ' 7. fixfファイルとfmeiファイルの有無による処理分岐
     If fixf_files.Count > 0 Then
-        CreateReportFiles file_system, fixf_files, SAVE_PATH, TEMPLATE_PATH
+        CreateReportFiles file_system, fixf_files, save_path, template_path
     End If
     If fmei_files.Count > 0 Then
-        CreateReportFiles file_system, fmei_files, SAVE_PATH, TEMPLATE_PATH
+        CreateReportFiles file_system, fmei_files, save_path, template_path
     End If
 
     ' 8. 各種明細CSV（fmei, henr, zogn）の処理
@@ -218,7 +220,7 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
             GoTo NextFile
         End If
         
-        report_file_path = SAVE_PATH & "\" & report_file_name
+        report_file_path = save_path & "\" & report_file_name
 
         ' 追加すべきチェック
         If Not file_system.FileExists(report_file_path) Then
