@@ -279,7 +279,7 @@ Function GetReportFileName(file_name As String, ByRef era_year As String, ByRef 
     End If
 End Function
 
-Function GetDispensingYearMonthFromFileName(file_name As String, ByRef era_year As String, ByRef dispensing_month As String, ByRef dispensing_year As String) As String
+Function GetDispensingYearMonthFromFileName(ByVal file_name As String, ByRef era_year As String, ByRef dispensing_month As String) As String
     Dim base_name As String, file_type As String
     Dim western_year As Integer, western_month As Integer    ' 西暦表示の請求年月
     
@@ -338,9 +338,9 @@ Function GetDispensingYearMonthFromFileName(file_name As String, ByRef era_year 
     dispensing_month = western_month - 1
     If dispensing_month < 1 Then
         dispensing_month = 12
-        dispensing_year = CStr(western_year - 1)
+        era_year = CStr(western_year - 1)
     Else
-        dispensing_year = CStr(western_year)
+        era_year = CStr(western_year)
     End If
     
     ' 一桁の数字に変換（先頭の0を除去）
@@ -362,9 +362,7 @@ Function GetDispensingYearMonthFromFileName(file_name As String, ByRef era_year 
         new_era_code = "1": new_era_year = western_year - 1867   ' 明治
     End If
     
-    era_year = dispensing_year - 2018
-    
-    GetDispensingYearMonthFromFileName = "保険請求管理報告書_" & GetEraName(new_era_code) & era_year & "年" & dispensing_month & "月調剤分"
+    GetDispensingYearMonthFromFileName = "保険請求管理報告書_" & GetEraName(new_era_code) & new_era_year & "年" & dispensing_month & "月調剤分"
 End Function
 
 Function ConvertEraCodeToLetter(era_code As String) As String
