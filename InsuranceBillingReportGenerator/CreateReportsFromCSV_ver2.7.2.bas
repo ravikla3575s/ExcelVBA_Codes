@@ -106,6 +106,9 @@ ErrorHandler:
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
     Application.StatusBar = False
+    
+    ' 開いているワークブックをクリーンアップ
+    Call CleanupObjects(Workbooks)
 End Sub
 
 Function SelectCsvFolder() As String
