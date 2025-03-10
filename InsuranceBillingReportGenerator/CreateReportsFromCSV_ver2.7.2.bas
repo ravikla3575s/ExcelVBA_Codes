@@ -249,7 +249,7 @@ Sub ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_t
         ImportCsvData file_obj.Path, ws_csv, file_type_name
 
         ' 詳細データを詳細シートに反映
-        Call TransferBillingDetails(report_wb, file_obj.Name, era_year, dispensing_month)
+        Call TransferBillingDetails(report_wb, file_obj.Name, dispensing_year, dispensing_month)
 
         ' 保存してブックを閉じる
         report_wb.Save
