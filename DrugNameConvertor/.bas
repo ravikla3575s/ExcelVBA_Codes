@@ -430,3 +430,30 @@ ErrorHandler:
     Application.ScreenUpdating = True
     MsgBox "エラーが発生しました: " & Err.Description
 End Sub
+
+Private Function ExtractPackageType(ByVal text As String) As String
+    Dim regex As Object
+    Set regex = CreateObject("VBScript.RegExp")
+    
+    ' 包装形態のパターンを定義
+    regex.Pattern = "(PTP|ＰＴＰ|P\.T\.P\.|P\.T\.P|バラ|ﾊﾞﾗ|BARA|分包|SP|ＳＰ|瓶|ボトル|管|アンプル|シリンジ)"
+    regex.IgnoreCase = True
+    
+    Dim matches As Object
+    Set matches = regex.Execute(text)
+    
+    If matches.Count > 0 Then
+        ' 見つかった包装形態を標準化
+        ExtractPackageType = NormalizePackageType(matches(0).Value)
+    Else
+        ' スラッシュで囲まれた部分を検索（既存のGetPackageType関数の処理）
+        regex.Pattern = "/([^/]+)/"
+        Set matches = regex.Execute(text)
+        
+        If matches.Count > 0 Then
+            ExtractPackageType = NormalizePackageType(matches(0).SubMatches(0))
+        Else
+            ExtractPackageType = ""
+        End If
+    End If
+End Function
