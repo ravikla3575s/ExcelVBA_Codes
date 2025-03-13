@@ -13,8 +13,8 @@ Sub CreateReportsFromCSV()
     On Error GoTo ErrorHandler
     
     ' パスの設定
-    template_path = ThisWorkbook.Sheets("設定").Range("B2").Value & "\保険請求管理報告書テンプレート20250222.xltm"
-    save_path = ThisWorkbook.Sheets("設定").Range("B3").Value
+    template_path = ThisWorkbook.Sheets(1).Range("B2").Value & "\保険請求管理報告書テンプレート20250222.xltm"
+    save_path = ThisWorkbook.Sheets(1).Range("B3").Value
     
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
