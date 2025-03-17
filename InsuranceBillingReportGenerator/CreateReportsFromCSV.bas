@@ -846,8 +846,8 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
         base_name = Left(file_name, InStrRev(file_name, ".") - 1)
     End If
     
-    Select Case LCase(file_type)
-        Case "fixf"
+    Select Case file_type
+        Case "請求確定状況"  ' fixfファイル
             ' fixfファイルの場合、請求年月から調剤年月を計算
             If Len(file_name) >= 25 Then
                 Dim billing_year As Integer, billing_month As Integer
@@ -865,7 +865,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                 GetYearMonthFromFile = True
             End If
             
-        Case "fmei", "henr", "zogn"
+        Case "振込額明細書", "返戻内訳書", "増減点連絡書"  ' fmei, henr, zognファイル
             ' fmei/henr/zognファイルの場合も請求年月から調剤年月を計算
             If Len(base_name) >= 5 And IsNumeric(Right(base_name, 5)) Then
                 Dim code_part As String
