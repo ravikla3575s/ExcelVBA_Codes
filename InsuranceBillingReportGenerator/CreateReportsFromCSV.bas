@@ -573,17 +573,6 @@ Function CalculateDispensingDate(ByVal western_year As Integer, ByVal western_mo
     CalculateDispensingDate = True
 End Function
 
-Function ConvertEraCodeToLetter(era_code As String) As String
-    Select Case era_code
-        Case "1": ConvertEraCodeToLetter = "M"
-        Case "2": ConvertEraCodeToLetter = "T"
-        Case "3": ConvertEraCodeToLetter = "S"
-        Case "4": ConvertEraCodeToLetter = "H"
-        Case "5": ConvertEraCodeToLetter = "R"
-        Case Else: ConvertEraCodeToLetter = "E"
-    End Select
-End Function
-
 Function SetTemplateInfo(report_book As Workbook, billing_year As String, billing_month As String) As Boolean
     Dim ws_main As Worksheet, ws_sub As Worksheet
     Dim billing_year_num As Integer, billing_month_num As Integer
@@ -665,35 +654,43 @@ Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String,
     Next key
 
     ' CSVファイルを読み込み、データ部分を転記
-    row_index = 2
-    Dim is_header As Boolean: is_header = True
+    row_index = 2  ' データは2行目から開始
+    
+    ' CSVの1行目（ヘッダー）を読み飛ばす
+    If Not text_stream.AtEndOfStream Then
+        text_stream.SkipLine
+    End If
+    
+    ' 残りのデータを転記
     Do While Not text_stream.AtEndOfStream
         line_text = text_stream.ReadLine
         data_array = Split(line_text, ",")
-        If is_header Then
-            is_header = False
-        Else
-            ' 請求確定状況が"2"の場合のみ転記（check_statusがTrueの場合）
-            Dim should_transfer As Boolean
-            should_transfer = True
-            
-            If check_status Then
-                ' 請求確定状況は30列目（インデックス29）にある
-                If UBound(data_array) >= 29 Then
-                    should_transfer = (Trim(data_array(29)) = "2")
+        
+        ' 請求確定状況のチェック（check_statusがTrueの場合）
+        Dim should_transfer As Boolean
+        should_transfer = True
+        
+        If check_status Then
+            ' 請求確定状況は30列目（インデックス29）にある
+            If UBound(data_array) >= 29 Then
+                ' 請求確定状況が1以外の場合に転記
+                should_transfer = (Trim(data_array(29)) <> "1")
+                
+                ' デバッグ出力を追加
+                Debug.Print "Row " & row_index & " status: " & Trim(data_array(29)) & _
+                          ", Transfer: " & should_transfer
+            End If
+        End If
+        
+        If should_transfer Then
+            col_index = 1
+            For Each key In column_map.Keys
+                If key - 1 <= UBound(data_array) Then
+                    ws.Cells(row_index, col_index).Value = Trim(data_array(key - 1))
                 End If
-            End If
-            
-            If should_transfer Then
-                col_index = 1
-                For Each key In column_map.Keys
-                    If key - 1 <= UBound(data_array) Then
-                        ws.Cells(row_index, col_index).Value = Trim(data_array(key - 1))
-                    End If
-                    col_index = col_index + 1
-                Next key
-                row_index = row_index + 1
-            End If
+                col_index = col_index + 1
+            Next key
+            row_index = row_index + 1
         End If
     Loop
     text_stream.Close
