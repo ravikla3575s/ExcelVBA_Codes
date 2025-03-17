@@ -585,6 +585,7 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     Dim start_row_dict As Object
     Dim rebill_dict As Object, late_dict As Object, unpaid_dict As Object, assessment_dict As Object
     Dim era_year As Integer
+    Dim era_code As String  ' 変数を追加
     
     ' 西暦から和暦年を計算
     Call GetEraInfo(CInt(dispensing_year), era_code, era_year)
