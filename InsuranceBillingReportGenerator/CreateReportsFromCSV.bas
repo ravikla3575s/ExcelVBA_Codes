@@ -673,29 +673,66 @@ End Function
 
 Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispensing_year As String, _
                          dispensing_month As String, Optional check_status As Boolean = False)
+    On Error GoTo ErrorHandler
+    
     Dim ws_main As Worksheet, ws_details As Worksheet
     Dim csv_yymm As String
     Dim payer_type As String
     Dim start_row_dict As Object
     Dim rebill_dict As Object, late_dict As Object, unpaid_dict As Object, assessment_dict As Object
     Dim era_year As Integer
-    Dim era_code As String  ' 変数を追加
+    Dim era_code As String
     
     ' 西暦から和暦年を計算
     Call GetEraInfo(CInt(dispensing_year), era_code, era_year)
     
-    ' ワークシートの設定
-    Set ws_main = report_wb.Sheets("R" & era_year & "." & dispensing_month)   ' メインシート
-    Set ws_details = report_wb.Sheets(ConvertToCircledNumber(CInt(dispensing_month))) ' 詳細データシート
-
+    ' シート名を構築
+    Dim main_sheet_name As String, details_sheet_name As String
+    main_sheet_name = "R" & era_year & "." & dispensing_month
+    details_sheet_name = ConvertToCircledNumber(CInt(dispensing_month))
+    
+    Debug.Print "Looking for sheets:"
+    Debug.Print "Main sheet: " & main_sheet_name
+    Debug.Print "Details sheet: " & details_sheet_name
+    
+    ' シートの存在確認
+    On Error Resume Next
+    Set ws_main = report_wb.Sheets(main_sheet_name)
+    Set ws_details = report_wb.Sheets(details_sheet_name)
+    On Error GoTo ErrorHandler
+    
+    If ws_main Is Nothing Then
+        MsgBox "メインシート '" & main_sheet_name & "' が見つかりません。", vbExclamation, "エラー"
+        Exit Sub
+    End If
+    
+    If ws_details Is Nothing Then
+        MsgBox "詳細シート '" & details_sheet_name & "' が見つかりません。", vbExclamation, "エラー"
+        Exit Sub
+    End If
+    
     ' 調剤年月と請求先区分の取得
     csv_yymm = GetDispenseYearMonth(ws_main)
+    If csv_yymm = "" Then
+        Debug.Print "Warning: GetDispenseYearMonth returned empty string"
+        ' エラーメッセージを表示するか、適切な処理を行う
+    End If
+    
     payer_type = GetPayerType(csv_file_name)
-    If payer_type = "労災" Then Exit Sub ' 労災等は詳細シート対象外
-
+    Debug.Print "Payer Type: " & payer_type
+    
+    If payer_type = "労災" Then
+        Debug.Print "Skipping 労災 file"
+        Exit Sub
+    End If
+    
     ' 詳細シート上の各カテゴリ開始行を取得
     Set start_row_dict = GetCategoryStartRows(ws_details, payer_type)
-
+    If start_row_dict.Count = 0 Then
+        MsgBox "カテゴリの開始行が見つかりません。シートの内容を確認してください。", vbExclamation, "エラー"
+        Exit Sub
+    End If
+    
     ' データの分類と辞書の作成
     Set rebill_dict = CreateObject("Scripting.Dictionary")
     Set late_dict = CreateObject("Scripting.Dictionary")
@@ -704,24 +741,65 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     
     ' メインシートのデータを分類
     If check_status Then
-        ' 請求確定状況が"2"のデータのみを分類
         Call ClassifyMainSheetDataWithStatus(ws_main, csv_yymm, csv_file_name, _
                                            rebill_dict, late_dict, unpaid_dict, assessment_dict)
     Else
-        ' 通常の分類処理
         Call ClassifyMainSheetData(ws_main, csv_yymm, csv_file_name, _
                                  rebill_dict, late_dict, unpaid_dict, assessment_dict)
     End If
-
+    
     ' 行の追加処理
     Call InsertAdditionalRows(ws_details, start_row_dict, rebill_dict.Count, late_dict.Count, assessment_dict.Count)
-
+    
     ' データの転記
     Call WriteDataToDetails(ws_details, start_row_dict, rebill_dict, late_dict, unpaid_dict, assessment_dict, payer_type)
+    
+    Exit Sub
 
-    ' 完了メッセージ
-    MsgBox payer_type & " のデータ転記が完了しました！", vbInformation, "処理完了"
+ErrorHandler:
+    MsgBox "データ転記中にエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description & vbCrLf & _
+           "ファイル: " & csv_file_name & vbCrLf & _
+           "メインシート: " & main_sheet_name & vbCrLf & _
+           "詳細シート: " & details_sheet_name, _
+           vbCritical, "エラー"
 End Sub
+
+Private Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As Object
+    Dim start_row_dict As Object
+    Set start_row_dict = CreateObject("Scripting.Dictionary")
+    
+    ' デバッグ出力を追加
+    Debug.Print "Searching for category rows in sheet: " & ws.Name
+    Debug.Print "Payer type: " & payer_type
+    
+    If payer_type = "社保" Then
+        Dim social_start_row As Long
+        social_start_row = GetStartRow(ws, "社保返戻再請求")
+        Debug.Print "社保返戻再請求 start row: " & social_start_row
+        
+        If social_start_row > 0 Then
+            start_row_dict.Add "返戻再請求", social_start_row
+            start_row_dict.Add "月遅れ請求", GetStartRow(ws, "社保月遅れ請求")
+            start_row_dict.Add "返戻・査定", GetStartRow(ws, "社保返戻・査定")
+            start_row_dict.Add "未請求扱い", GetStartRow(ws, "社保未請求扱い")
+        End If
+    ElseIf payer_type = "国保" Then
+        Dim kokuho_start_row As Long
+        kokuho_start_row = GetStartRow(ws, "国保返戻再請求")
+        Debug.Print "国保返戻再請求 start row: " & kokuho_start_row
+        
+        If kokuho_start_row > 0 Then
+            start_row_dict.Add "返戻再請求", kokuho_start_row
+            start_row_dict.Add "月遅れ請求", GetStartRow(ws, "国保月遅れ請求")
+            start_row_dict.Add "返戻・査定", GetStartRow(ws, "国保返戻・査定")
+            start_row_dict.Add "未請求扱い", GetStartRow(ws, "国保未請求扱い")
+        End If
+    End If
+    
+    Set GetCategoryStartRows = start_row_dict
+End Function
 
 Private Function GetDispenseYearMonth(ws As Worksheet) As String
     GetDispenseYearMonth = ""
@@ -750,25 +828,6 @@ Private Function GetPayerType(csv_file_name As String) As String
         Case "2": GetPayerType = "国保"
         Case Else: GetPayerType = "労災"
     End Select
-End Function
-
-Private Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As Object
-    Dim start_row_dict As Object
-    Set start_row_dict = CreateObject("Scripting.Dictionary")
-    
-    If payer_type = "社保" Then
-        start_row_dict.Add "返戻再請求", GetStartRow(ws, "社保返戻再請求")
-        start_row_dict.Add "月遅れ請求", GetStartRow(ws, "社保月遅れ請求")
-        start_row_dict.Add "返戻・査定", GetStartRow(ws, "社保返戻・査定")
-        start_row_dict.Add "未請求扱い", GetStartRow(ws, "社保未請求扱い")
-    ElseIf payer_type = "国保" Then
-        start_row_dict.Add "返戻再請求", GetStartRow(ws, "国保返戻再請求")
-        start_row_dict.Add "月遅れ請求", GetStartRow(ws, "国保月遅れ請求")
-        start_row_dict.Add "返戻・査定", GetStartRow(ws, "国保返戻・査定")
-        start_row_dict.Add "未請求扱い", GetStartRow(ws, "国保未請求扱い")
-    End If
-    
-    Set GetCategoryStartRows = start_row_dict
 End Function
 
 Private Sub ClassifyMainSheetData(ws As Worksheet, csv_yymm As String, csv_file_name As String, _
