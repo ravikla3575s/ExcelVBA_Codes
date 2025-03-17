@@ -824,14 +824,14 @@ Function SortFileCollection(files As Collection, file_system As Object, file_typ
     Dim j As Long
     For i = 1 To count - 1
         For j = 1 To count - i
-            Dim year1 As String, month1 As String
-            Dim year2 As String, month2 As String
+            Dim year1 As Integer, month1 As Integer
+            Dim year2 As Integer, month2 As Integer
             
             If GetYearMonthFromFile(file_array(j).Path, file_type, year1, month1) And _
                GetYearMonthFromFile(file_array(j + 1).Path, file_type, year2, month2) Then
                 
                 ' 年月を結合して比較（例：202402）
-                If (year1 & Format(CInt(month1), "00")) > (year2 & Format(CInt(month2), "00")) Then
+                If (CStr(year1) & Format(month1, "00")) > (CStr(year2) & Format(month2, "00")) Then
                     ' 順序が逆の場合、要素を交換
                     Dim temp_obj As Object
                     Set temp_obj = file_array(j)
