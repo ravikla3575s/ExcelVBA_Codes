@@ -223,7 +223,7 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
             
             ' 報告書ファイル名を生成
             Dim report_file_name As String, report_file_path As String
-            report_file_name = GenerateReportFileNameFromBillingDate(CInt(billing_year), CInt(billing_month))
+            report_file_name = GenerateReportFileNameFromDispensingDate(CInt(billing_year), CInt(billing_month))
             If report_file_name = "" Then
                 MsgBox "ファイル名の生成に失敗しました。", vbExclamation, "エラー"
                 GoTo NextFile  ' エラー時は次のファイルへ
