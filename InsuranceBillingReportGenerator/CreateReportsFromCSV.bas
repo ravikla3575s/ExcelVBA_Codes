@@ -239,15 +239,12 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                 If Not report_wb Is Nothing Then
                     Application.DisplayAlerts = False
                     ' テンプレート情報を設定（シート名の変更も含む）
-                    SetTemplateInfo report_wb, billing_year, billing_month
-                    
-                    ' 保存時にリンクを保持しないオプションを追加
-                    report_wb.SaveAs Filename:=report_file_path, _
-                                   FileFormat:=xlOpenXMLWorkbookMacroEnabled, _
-                                   Local:=True
-                    
-                    report_wb.Close True  ' Trueを指定して変更を保存
-                    Application.DisplayAlerts = True
+                    If SetTemplateInfo(report_wb, billing_year, billing_month) Then
+                        ' 保存時にリンクを保持しないオプションを追加
+                        report_wb.SaveAs Filename:=report_file_path, _
+                                       FileFormat:=xlOpenXMLWorkbookMacroEnabled, _
+                                       Local:=True
+                    End If
                 End If
             End If
         End If
@@ -291,7 +288,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         
         ' ワークブックを開く処理を先に行う
         On Error Resume Next
-        Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=True, UpdateLinks:=False)
+        Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=False, UpdateLinks:=False)
         On Error GoTo ErrorHandler
         
         If report_wb Is Nothing Then
@@ -322,11 +319,11 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         
         ' 新規シートの追加
         Dim insert_index As Long
-        insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.Count + 1)
+        insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.Count)
         
         On Error Resume Next
         Dim ws_csv As Worksheet
-        Set ws_csv = report_wb.Sheets.Add(After:=report_wb.Sheets(insert_index - 1))
+        Set ws_csv = report_wb.Sheets.Add(After:=report_wb.Sheets(insert_index))
         If Err.Number <> 0 Then
             MsgBox "シートの追加に失敗しました。" & vbCrLf & _
                    "エラー: " & Err.Description, vbExclamation
@@ -352,7 +349,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
 
         ' 保存してブックを閉じる
         report_wb.Save
-        report_wb.Close False
+        report_wb.Close True
 
         ' オブジェクトの解放
         Set ws_csv = Nothing
@@ -976,7 +973,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                 billing_year = CInt(Mid(file_name, 18, 4))
                 billing_month = CInt(Mid(file_name, 22, 2))
                 
-                ' 調剤年月を計算（請求月は調剤月の翌月）
+                ' 調剤年月を計算（請求月は調剤月の翌月なので、請求月から1を引く）
                 If billing_month = 1 Then
                     dispensing_year = billing_year - 1
                     dispensing_month = 12
@@ -985,6 +982,12 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                     dispensing_month = billing_month - 1
                 End If
                 GetYearMonthFromFile = True
+                
+                ' デバッグ出力
+                Debug.Print "Billing Year: " & billing_year
+                Debug.Print "Billing Month: " & billing_month
+                Debug.Print "Dispensing Year: " & dispensing_year
+                Debug.Print "Dispensing Month: " & dispensing_month
             End If
             
         Case "振込額明細書", "返戻内訳書", "増減点連絡書"  ' fmei, henr, zognファイル
