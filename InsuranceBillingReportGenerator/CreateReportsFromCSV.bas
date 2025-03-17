@@ -388,19 +388,19 @@ Function ConvertEraYearToWestern(ByVal era_code As String, ByVal era_year As Str
 End Function
 
 Function CalculateDispensingDate(ByVal western_year As Integer, ByVal western_month As Integer, _
-    ByRef dispensing_year As String, ByRef dispensing_month As String) As Boolean
+    ByRef dispensing_year As Integer, ByRef dispensing_month As Integer) As Boolean
     
     Dim temp_month As Integer
     temp_month = western_month - 1
     
     If temp_month < 1 Then
         temp_month = 12
-        dispensing_year = CStr(western_year - 1)
+        dispensing_year = western_year - 1
     Else
-        dispensing_year = CStr(western_year)
+        dispensing_year = western_year
     End If
     
-    dispensing_month = Format(temp_month, "00")  ' 常に2桁の形式で保存
+    dispensing_month = temp_month
     CalculateDispensingDate = True
 End Function
 
