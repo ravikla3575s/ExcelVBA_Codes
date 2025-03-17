@@ -238,12 +238,15 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                 
                 If Not report_wb Is Nothing Then
                     Application.DisplayAlerts = False
+                    ' テンプレート情報を設定（シート名の変更も含む）
+                    SetTemplateInfo report_wb, billing_year, billing_month
+                    
                     ' 保存時にリンクを保持しないオプションを追加
                     report_wb.SaveAs Filename:=report_file_path, _
                                    FileFormat:=xlOpenXMLWorkbookMacroEnabled, _
                                    Local:=True
-                    ' テンプレート情報を設定（シート名の変更も含む）
-                    SetTemplateInfo report_wb, billing_year, billing_month
+                    
+                    report_wb.Close True  ' Trueを指定して変更を保存
                     Application.DisplayAlerts = True
                 End If
             End If
