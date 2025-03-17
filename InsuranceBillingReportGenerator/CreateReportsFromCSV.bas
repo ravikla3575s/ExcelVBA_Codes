@@ -266,18 +266,34 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
     On Error GoTo ErrorHandler
     
     Dim file_obj As Object
-    For Each file_obj In csv_files
-        Dim report_file_name As String, report_file_path As String
-        Dim base_name As String, sheet_name As String
-        Dim report_wb As Workbook
-        Dim sheet_exists As Boolean
-        Dim dispensing_year As Integer, dispensing_month As Integer
+    Dim dispensing_year As Integer, dispensing_month As Integer
+    Dim report_file_name As String, report_file_path As String
+    Dim base_name As String, sheet_name As String
+    Dim report_wb As Workbook
+    Dim sheet_exists As Boolean
 
+    For Each file_obj In csv_files
         ' CSVファイル名から調剤年月を取得
         If Not GetYearMonthFromFile(file_obj.Path, file_type_name, dispensing_year, dispensing_month) Then
             MsgBox "ファイル " & file_obj.Name & " から調剤年月を取得できませんでした。", vbExclamation, "エラー"
             GoTo NextFile
         End If
+
+        ' デバッグ出力を追加
+        Debug.Print "File: " & file_obj.Name
+        Debug.Print "Original Dispensing Year: " & dispensing_year
+        Debug.Print "Original Dispensing Month: " & dispensing_month
+
+        ' 調剤年月を修正（請求月と同じ月を調剤月とする）
+        If dispensing_month = 12 Then
+            dispensing_year = dispensing_year + 1
+            dispensing_month = 1
+        Else
+            dispensing_month = dispensing_month + 1
+        End If
+
+        Debug.Print "Corrected Dispensing Year: " & dispensing_year
+        Debug.Print "Corrected Dispensing Month: " & dispensing_month
         
         ' 報告書ファイル名を生成
         report_file_name = GenerateReportFileNameFromDispensingDate(dispensing_year, dispensing_month)
