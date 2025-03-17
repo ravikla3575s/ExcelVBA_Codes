@@ -918,19 +918,45 @@ Private Sub UpdateProgress(current As Long, total As Long, message As String)
     Application.StatusBar = message & " - " & current & "/" & total
 End Sub
 
-' 元号コードから元号名を取得する関数を追加
-Private Function GetEraName(era_code As String) As String
-    Select Case era_code
-        Case "5": GetEraName = "令和"
-        Case "4": GetEraName = "平成"
-        Case "3": GetEraName = "昭和"
-        Case "2": GetEraName = "大正"
-        Case "1": GetEraName = "明治"
-        Case Else: GetEraName = "不明"
-    End Select
+' 西暦から元号情報を取得する関数
+Function ConvertEraYear(ByVal western_year As Integer, Optional ByVal return_dict As Boolean = False) As Variant
+    Dim era As String
+    Dim era_year As Integer
+    
+    If western_year >= 2019 Then
+        era = "令和"
+        era_year = western_year - 2018
+    ElseIf western_year >= 1989 Then
+        era = "平成"
+        era_year = western_year - 1988
+    ElseIf western_year >= 1926 Then
+        era = "昭和"
+        era_year = western_year - 1925
+    ElseIf western_year >= 1912 Then
+        era = "大正"
+        era_year = western_year - 1911
+    ElseIf western_year >= 1868 Then
+        era = "明治"
+        era_year = western_year - 1867
+    Else
+        era = ""
+        era_year = 0
+    End If
+    
+    If return_dict Then
+        ' Dictionary オブジェクトを返す
+        Dim result As Object
+        Set result = CreateObject("Scripting.Dictionary")
+        result.Add "era", era
+        result.Add "year", era_year
+        Set ConvertEraYear = result
+    Else
+        ' 元号文字列を返す
+        ConvertEraYear = era
+    End If
 End Function
 
-' 西暦から元号コードと年を取得する関数を追加
+' 西暦から元号情報を取得する関数を追加
 Private Function GetEraInfo(western_year As Integer, ByRef era_code As String, ByRef era_year As Integer) As Boolean
     If western_year >= 2019 Then
         era_code = "5": era_year = western_year - 2018   ' 令和
