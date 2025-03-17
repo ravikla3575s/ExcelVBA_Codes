@@ -909,7 +909,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                 billing_year = CInt(Mid(file_name, 18, 4))
                 billing_month = CInt(Mid(file_name, 22, 2))
                 
-                ' 調剤年月を計算（請求月の前月）
+                ' 調剤年月を計算（請求月は調剤月の翌月）
                 If billing_month = 1 Then
                     dispensing_year = billing_year - 1
                     dispensing_month = 12
@@ -940,7 +940,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                         Case "1": billing_year = 1867 + era_year  ' 明治
                     End Select
 
-                    ' 調剤年月を計算（請求月の前月）
+                    ' 調剤年月を計算（請求月は調剤月の翌月）
                     If billing_month = 1 Then
                         dispensing_year = billing_year - 1
                         dispensing_month = 12
