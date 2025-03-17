@@ -332,10 +332,20 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         On Error GoTo ErrorHandler
         
         ws_csv.Name = sheet_name
-        ImportCsvData file_obj.Path, ws_csv, file_type_name
+        If file_type_name = "請求確定状況" Then
+            ' 請求確定状況の場合、確定状況が"2"のデータのみを転記
+            ImportCsvData file_obj.Path, ws_csv, file_type_name, True
+        Else
+            ' その他のファイルタイプは通常通り転記
+            ImportCsvData file_obj.Path, ws_csv, file_type_name, False
+        End If
 
-        ' 詳細データを詳細シートに反映
-        Call TransferBillingDetails(report_wb, file_obj.Name, CStr(dispensing_year), Format(dispensing_month, "00"))
+        ' 詳細データを詳細シートに反映（請求確定状況の場合のみ確定状況をチェック）
+        If file_type_name = "請求確定状況" Then
+            Call TransferBillingDetails(report_wb, file_obj.Name, CStr(dispensing_year), Format(dispensing_month, "00"), True)
+        Else
+            Call TransferBillingDetails(report_wb, file_obj.Name, CStr(dispensing_year), Format(dispensing_month, "00"), False)
+        End If
 
         ' 保存してブックを閉じる
         report_wb.Save
@@ -511,7 +521,7 @@ Function ConvertToCircledNumber(month As Integer) As String
     End If
 End Function
 
-Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String)
+Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String, Optional check_status As Boolean = False)
     Dim file_system_local As Object, text_stream As Object
     Dim column_map As Object
     Dim line_text As String
@@ -544,14 +554,27 @@ Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String)
         If is_header Then
             is_header = False
         Else
-            col_index = 1
-            For Each key In column_map.Keys
-                If key - 1 <= UBound(data_array) Then
-                    ws.Cells(row_index, col_index).Value = Trim(data_array(key - 1))
+            ' 請求確定状況が"2"の場合のみ転記（check_statusがTrueの場合）
+            Dim should_transfer As Boolean
+            should_transfer = True
+            
+            If check_status Then
+                ' 請求確定状況は30列目（インデックス29）にある
+                If UBound(data_array) >= 29 Then
+                    should_transfer = (Trim(data_array(29)) = "2")
                 End If
-                col_index = col_index + 1
-            Next key
-            row_index = row_index + 1
+            End If
+            
+            If should_transfer Then
+                col_index = 1
+                For Each key In column_map.Keys
+                    If key - 1 <= UBound(data_array) Then
+                        ws.Cells(row_index, col_index).Value = Trim(data_array(key - 1))
+                    End If
+                    col_index = col_index + 1
+                Next key
+                row_index = row_index + 1
+            End If
         End If
     Loop
     text_stream.Close
@@ -632,7 +655,8 @@ Function GetColumnMapping(file_type As String) As Object
     Set GetColumnMapping = column_map
 End Function
 
-Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispensing_year As String, dispensing_month As String)
+Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispensing_year As String, _
+                         dispensing_month As String, Optional check_status As Boolean = False)
     Dim ws_main As Worksheet, ws_details As Worksheet
     Dim csv_yymm As String
     Dim payer_type As String
@@ -663,7 +687,15 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     Set assessment_dict = CreateObject("Scripting.Dictionary")
     
     ' メインシートのデータを分類
-    Call ClassifyMainSheetData(ws_main, csv_yymm, csv_file_name, rebill_dict, late_dict, unpaid_dict, assessment_dict)
+    If check_status Then
+        ' 請求確定状況が"2"のデータのみを分類
+        Call ClassifyMainSheetDataWithStatus(ws_main, csv_yymm, csv_file_name, _
+                                           rebill_dict, late_dict, unpaid_dict, assessment_dict)
+    Else
+        ' 通常の分類処理
+        Call ClassifyMainSheetData(ws_main, csv_yymm, csv_file_name, _
+                                 rebill_dict, late_dict, unpaid_dict, assessment_dict)
+    End If
 
     ' 行の追加処理
     Call InsertAdditionalRows(ws_details, start_row_dict, rebill_dict.Count, late_dict.Count, assessment_dict.Count)
@@ -747,6 +779,38 @@ Private Sub ClassifyMainSheetData(ws As Worksheet, csv_yymm As String, csv_file_
                 unpaid_dict(ws.Cells(row, 1).Value) = row_data
             ElseIf InStr(LCase(csv_file_name), "henr") > 0 Then
                 assessment_dict(ws.Cells(row, 1).Value) = row_data
+            End If
+        End If
+    Next row
+End Sub
+
+Private Sub ClassifyMainSheetDataWithStatus(ws As Worksheet, csv_yymm As String, csv_file_name As String, _
+    ByRef rebill_dict As Object, ByRef late_dict As Object, ByRef unpaid_dict As Object, ByRef assessment_dict As Object)
+    
+    Dim last_row As Long, row As Long
+    Dim dispensing_code As String, dispensing_ym As String
+    Dim row_data As Variant
+    
+    last_row = ws.Cells(ws.Rows.Count, "D").End(xlUp).Row
+    
+    For row = 2 To last_row
+        ' 請求確定状況をチェック（AD列 = 30列目）
+        If ws.Cells(row, 30).Value = "2" Then
+            dispensing_code = ws.Cells(row, 2).Value
+            dispensing_ym = ConvertToWesternDate(dispensing_code)
+            
+            If csv_yymm <> "" And Right(dispensing_code, 4) <> csv_yymm Then
+                row_data = Array(ws.Cells(row, 4).Value, dispensing_ym, ws.Cells(row, 5).Value, ws.Cells(row, 10).Value)
+                
+                If InStr(LCase(csv_file_name), "fixf") > 0 Then
+                    late_dict(ws.Cells(row, 1).Value) = row_data
+                ElseIf InStr(LCase(csv_file_name), "fmei") > 0 Then
+                    rebill_dict(ws.Cells(row, 1).Value) = row_data
+                ElseIf InStr(LCase(csv_file_name), "zogn") > 0 Then
+                    unpaid_dict(ws.Cells(row, 1).Value) = row_data
+                ElseIf InStr(LCase(csv_file_name), "henr") > 0 Then
+                    assessment_dict(ws.Cells(row, 1).Value) = row_data
+                End If
             End If
         End If
     Next row
