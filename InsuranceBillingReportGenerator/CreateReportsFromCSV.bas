@@ -289,8 +289,10 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         report_file_path = save_path & "\" & report_file_name
         
         ' ワークブックを開く処理を先に行う
-        On Error GoTo ErrorHandler
+        On Error Resume Next
         Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=True, UpdateLinks:=False)
+        On Error GoTo ErrorHandler
+        
         If report_wb Is Nothing Then
             MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
             GoTo NextFile
@@ -300,18 +302,37 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         base_name = file_system.GetBaseName(file_obj.Name)
         sheet_name = base_name
         
-        ' シート名が既に存在する場合の処理を追加
+        ' シート名の重複チェックと一意の名前生成
         Dim sheet_index As Integer
         sheet_index = 1
-        Do While SheetExists(report_wb, sheet_name)
-            sheet_name = base_name & "_" & sheet_index
-            sheet_index = sheet_index + 1
-        Loop
         
+        On Error Resume Next
+        Do
+            sheet_exists = False
+            Dim test_ws As Worksheet
+            Set test_ws = report_wb.Sheets(sheet_name)
+            If Not test_ws Is Nothing Then
+                sheet_exists = True
+                sheet_name = base_name & "_" & Format(sheet_index, "00")
+                sheet_index = sheet_index + 1
+            End If
+        Loop While sheet_exists
+        On Error GoTo ErrorHandler
+        
+        ' 新規シートの追加
         Dim insert_index As Long
         insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.Count + 1)
+        
+        On Error Resume Next
         Dim ws_csv As Worksheet
         Set ws_csv = report_wb.Sheets.Add(After:=report_wb.Sheets(insert_index - 1))
+        If Err.Number <> 0 Then
+            MsgBox "シートの追加に失敗しました。" & vbCrLf & _
+                   "エラー: " & Err.Description, vbExclamation
+            GoTo NextFile
+        End If
+        On Error GoTo ErrorHandler
+        
         ws_csv.Name = sheet_name
         ImportCsvData file_obj.Path, ws_csv, file_type_name
 
@@ -322,18 +343,30 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         report_wb.Save
         report_wb.Close False
 
-        ' オブジェクトの解放処理を追加
+        ' オブジェクトの解放
+        Set ws_csv = Nothing
         Set report_wb = Nothing
-        Exit Function
 
-ErrorHandler:
+NextFile:
         If Not report_wb Is Nothing Then
             report_wb.Close SaveChanges:=False
             Set report_wb = Nothing
         End If
-NextFile:
-        ' 次のCSVファイルへ
     Next file_obj
+    Exit Function
+
+ErrorHandler:
+    MsgBox "処理中にエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description & vbCrLf & _
+           "ファイル: " & IIf(Not file_obj Is Nothing, file_obj.Name, "不明"), _
+           vbCritical, "エラー"
+    
+    If Not report_wb Is Nothing Then
+        report_wb.Close SaveChanges:=False
+        Set report_wb = Nothing
+    End If
+    Resume NextFile
 End Function
 
 ' シートの存在チェック用の関数を追加
