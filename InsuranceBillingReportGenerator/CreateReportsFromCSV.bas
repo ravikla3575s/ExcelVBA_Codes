@@ -296,6 +296,15 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         ' CSVデータをインポートして新規シートに転記
         base_name = file_system.GetBaseName(file_obj.Name)
         sheet_name = base_name
+        
+        ' シート名が既に存在する場合の処理を追加
+        Dim sheet_index As Integer
+        sheet_index = 1
+        Do While SheetExists(report_wb, sheet_name)
+            sheet_name = base_name & "_" & sheet_index
+            sheet_index = sheet_index + 1
+        Loop
+        
         Dim insert_index As Long
         insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.Count + 1)
         Dim ws_csv As Worksheet
@@ -322,6 +331,17 @@ ErrorHandler:
 NextFile:
         ' 次のCSVファイルへ
     Next file_obj
+End Function
+
+' シートの存在チェック用の関数を追加
+Private Function SheetExists(wb As Workbook, sheet_name As String) As Boolean
+    Dim ws As Worksheet
+    
+    On Error Resume Next
+    Set ws = wb.Sheets(sheet_name)
+    On Error GoTo 0
+    
+    SheetExists = Not ws Is Nothing
 End Function
 
 ' 報告書ファイル名を生成する関数（引数名を変更）
