@@ -281,12 +281,10 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         
         ' 報告書ファイル名を生成
         report_file_name = GenerateReportFileNameFromDispensingDate(dispensing_year, dispensing_month)
-        If report_file_name = "" Then
-            MsgBox "ファイル名の生成に失敗しました。", vbExclamation, "エラー"
-            GoTo NextFile
-        End If
-        
+        Debug.Print "Generated Report File: " & report_file_name
+
         report_file_path = save_path & "\" & report_file_name
+        Debug.Print "Full Report Path: " & report_file_path
         
         ' ワークブックを開く処理を先に行う
         On Error Resume Next
@@ -924,7 +922,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
             
         Case "振込額明細書", "返戻内訳書", "増減点連絡書"  ' fmei, henr, zognファイル
             ' fmei/henr/zognファイルの場合も請求年月から調剤年月を計算
-            If Len(base_name) >= 5 And IsNumeric(Right(base_name, 5)) Then
+            If Len(base_name) >= 5 Then
                 Dim code_part As String
                 code_part = Right(base_name, 5)
                 If Len(code_part) = 5 And IsNumeric(code_part) Then
@@ -954,6 +952,12 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                 End If
             End If
     End Select
+
+    ' デバッグ用のメッセージを追加
+    Debug.Print "File: " & file_name
+    Debug.Print "Type: " & file_type
+    Debug.Print "Dispensing Year: " & dispensing_year
+    Debug.Print "Dispensing Month: " & dispensing_month
 End Function
 
 ' 長時間処理の進捗表示
