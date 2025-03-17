@@ -238,7 +238,10 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                 
                 If Not report_wb Is Nothing Then
                     Application.DisplayAlerts = False
-                    report_wb.SaveAs Filename:=report_file_path, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+                    ' 保存時にリンクを保持しないオプションを追加
+                    report_wb.SaveAs Filename:=report_file_path, _
+                                   FileFormat:=xlOpenXMLWorkbookMacroEnabled, _
+                                   Local:=True
                     ' テンプレート情報を設定（シート名の変更も含む）
                     SetTemplateInfo report_wb, billing_year, billing_month
                     Application.DisplayAlerts = True
@@ -287,7 +290,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         
         ' ワークブックを開く処理を先に行う
         On Error GoTo ErrorHandler
-        Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=True)
+        Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=True, UpdateLinks:=False)
         If report_wb Is Nothing Then
             MsgBox "ファイル " & report_file_path & " を開けませんでした。", vbExclamation, "エラー"
             GoTo NextFile
