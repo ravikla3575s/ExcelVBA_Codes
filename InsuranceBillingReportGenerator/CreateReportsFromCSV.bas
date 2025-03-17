@@ -373,20 +373,6 @@ Function GenerateReportFileNameFromDispensingDate(ByVal dispensing_year As Integ
                             Format(CInt(dispensing_month), "00") & "月調剤分.xlsm"
 End Function
 
-Function ConvertEraYearToWestern(ByVal era_code As String, ByVal era_year As String) As Integer
-    Dim year_num As Integer
-    year_num = CInt(era_year)
-    
-    Select Case era_code
-        Case "5": ConvertEraYearToWestern = 2018 + year_num  ' 令和
-        Case "4": ConvertEraYearToWestern = 1988 + year_num  ' 平成
-        Case "3": ConvertEraYearToWestern = 1925 + year_num  ' 昭和
-        Case "2": ConvertEraYearToWestern = 1911 + year_num  ' 大正
-        Case "1": ConvertEraYearToWestern = 1867 + year_num  ' 明治
-        Case Else: ConvertEraYearToWestern = 0
-    End Select
-End Function
-
 Function CalculateDispensingDate(ByVal western_year As Integer, ByVal western_month As Integer, _
     ByRef dispensing_year As Integer, ByRef dispensing_month As Integer) As Boolean
     
