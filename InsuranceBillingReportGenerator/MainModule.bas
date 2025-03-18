@@ -79,10 +79,10 @@ Sub CreateReportsFromCSV()
     End If
 
     ' 8. 各種明細CSV（fmei, henr, zogn）の処理
-    ProcessCsvFilesByType file_system, fixf_files, "請求確定状況"
-    ProcessCsvFilesByType file_system, fmei_files, "振込額明細書"
-    ProcessCsvFilesByType file_system, henr_files, "返戻内訳書" 
-    ProcessCsvFilesByType file_system, zogn_files, "増減点連絡書"
+    FileModule.ProcessCsvFilesByType file_system, fixf_files, "請求確定状況"
+    FileModule.ProcessCsvFilesByType file_system, fmei_files, "振込額明細書"
+    FileModule.ProcessCsvFilesByType file_system, henr_files, "返戻内訳書" 
+    FileModule.ProcessCsvFilesByType file_system, zogn_files, "増減点連絡書"
     
     ' 9. 完了メッセージ
     MsgBox "CSVファイルの処理が完了しました！", vbInformation, "完了"
@@ -95,17 +95,42 @@ Sub CreateReportsFromCSV()
     Exit Sub
     
 ErrorHandler:
-    MsgBox "メイン処理でエラーが発生しました。" & vbCrLf & _
-           "エラー番号: " & Err.Number & vbCrLf & _
-           "エラー内容: " & Err.Description & vbCrLf & _
-           "発生箇所: CreateReportsFromCSV", _
-           vbCritical, "エラー"
+    Debug.Print "========== ERROR DETAILS =========="
+    Debug.Print "Error occurred in CreateReportsFromCSV"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "=================================="
     
-    ' クリーンアップ処理
+    MsgBox "処理中にエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description, _
+           vbCritical, "エラー"
+           
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
-    Application.StatusBar = False
+End Sub
+
+' 調剤年月を取得する関数（年と月を別々に取得）
+Private Sub GetDispensingYearMonth(file_path As String, ByRef year_out As String, ByRef month_out As String)
+    Dim file_name As String
+    Dim billing_year As Integer, billing_month As Integer
     
-    ' 開いているワークブックをクリーンアップ
-    Call CleanupObjects(Workbooks)
+    file_name = Right(file_path, Len(file_path) - InStrRev(file_path, "\"))
+    year_out = ""
+    month_out = ""
+    
+    ' FIXFファイルから請求年月を抽出
+    If Len(file_name) >= 23 Then
+        billing_year = CInt(Mid(file_name, 18, 4))
+        billing_month = CInt(Mid(file_name, 22, 2))
+        
+        ' 請求月から調剤年月を計算（1月前）
+        If billing_month = 1 Then
+            year_out = CStr(billing_year - 1)
+            month_out = "12"
+        Else
+            year_out = CStr(billing_year)
+            month_out = Format(billing_month - 1, "00")
+        End If
+    End If
 End Sub 
