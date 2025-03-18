@@ -518,32 +518,29 @@ Function GenerateReportFileNameFromDispensingDate(ByVal dispensing_year As Integ
         Exit Function
     End If
     
-    Dim dispensing_ym As String
+    Debug.Print "GenerateReportFileNameFromDispensingDate input:"
+    Debug.Print "Dispensing Year: " & dispensing_year
+    Debug.Print "Dispensing Month: " & dispensing_month
+    
+    ' 元号情報を取得
     Dim era_info As Object
-    
-    ' 調剤年月を計算
-    If Not CalculateDispensingDate(dispensing_year, dispensing_month, dispensing_year, dispensing_month) Then
-        MsgBox "調剤年月の計算に失敗しました。" & vbCrLf & _
-               "調剤年月: " & dispensing_year & "年" & dispensing_month, _
-               vbExclamation, "GenerateReportFileNameFromDispensingDate - エラー"
-        GenerateReportFileNameFromDispensingDate = ""
-        Exit Function
-    End If
-    
-    ' 調剤年（西暦）から元号情報を取得
     Set era_info = ConvertEraYear(dispensing_year, True)
+    
     If era_info("era") = "" Then
         MsgBox "元号への変換に失敗しました。" & vbCrLf & _
-               "調剤年月: " & dispensing_year & "年" & dispensing_month, _
+               "調剤年月: " & dispensing_year & "年" & dispensing_month & "月", _
                vbExclamation, "GenerateReportFileNameFromDispensingDate - エラー"
         GenerateReportFileNameFromDispensingDate = ""
         Exit Function
     End If
     
+    ' ファイル名を生成（調整なしで直接使用）
     GenerateReportFileNameFromDispensingDate = "保険請求管理報告書_" & _
                             era_info("era") & _
                             Format(era_info("year"), "00") & "年" & _
-                            Format(CInt(dispensing_month), "00") & "月調剤分.xlsm"
+                            Format(dispensing_month, "00") & "月調剤分.xlsm"
+    
+    Debug.Print "Generated filename: " & GenerateReportFileNameFromDispensingDate
 End Function
 
 Function CalculateDispensingDate(ByVal western_year As Integer, ByVal western_month As Integer, _
