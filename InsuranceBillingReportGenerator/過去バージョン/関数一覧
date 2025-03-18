@@ -1,0 +1,276 @@
+1. CreateReportsFromCSV Sub
+目的: CSVフォルダを選択し、CSVファイルを処理して報告書を生成する。
+引数: なし
+引用元の関数: SelectCsvFolder, IsFolderEmpty, CreateReportFiles, ProcessCsvFilesByType, CleanupObjects
+使用変数:
+template_path: テンプレートファイルのパス
+save_path: 保存先フォルダのパス
+csv_folder: CSVフォルダのパス
+file_system: FileSystemObject
+billing_year, billing_month: 処理対象の診療年・月（西暦）
+fixf_files, fmei_files, henr_files, zogn_files: 各種CSVファイルのコレクション
+file_obj: ファイルオブジェクト
+2. SelectCsvFolder Function
+目的: ユーザーにCSVフォルダを選択させる。
+引数: なし
+引用元の関数: なし
+使用変数:
+Application.FileDialog: フォルダ選択ダイアログ
+3. IsFolderEmpty Function
+目的: 指定されたフォルダが空かどうかを確認する。
+引数:
+folder_path: フォルダのパス
+引用元の関数: なし
+使用変数:
+fso_local: FileSystemObject
+folder_obj: フォルダオブジェクト
+4. CreateReportFiles Function
+目的: 各CSVファイルに対して報告書を生成する。
+引数:
+file_system: FileSystemObject
+files: CSVファイルのコレクション
+save_path: 保存先フォルダのパス
+template_path: テンプレートファイルのパス
+引用元の関数: GetYearMonthFromFile, GenerateReportFileName, SetTemplateInfo
+使用変数:
+file: ファイルオブジェクト
+billing_year, billing_month: 請求年・月
+report_file_name, report_file_path: 報告書ファイル名とパス
+report_wb: ワークブックオブジェクト
+5. ProcessCsvFilesByType Function
+目的: 各種CSVファイルを処理し、データを転記する。
+引数:
+file_system: FileSystemObject
+csv_files: CSVファイルのコレクション
+file_type_name: ファイルタイプ名
+引用元の関数: GetYearMonthFromFile, GenerateReportFileName, ImportCsvData, TransferBillingDetails
+使用変数:
+file_obj: ファイルオブジェクト
+report_file_name, report_file_path: 報告書ファイル名とパス
+base_name, sheet_name: シート名
+report_wb: ワークブックオブジェクト
+sheet_exists: シートの存在フラグ
+dispensing_year, dispensing_month: 調剤年・月
+6. GenerateReportFileName Function
+目的: 調剤年月を基に報告書ファイル名を生成する。
+引数:
+billing_year: 請求年
+billing_month: 請求月
+引用元の関数: CalculateDispensingDate, ConvertEraYear
+使用変数:
+dispensing_year, dispensing_month: 調剤年・月
+era_info: 元号情報
+7. CalculateDispensingDate Function
+目的: 請求年月を基に調剤年月を計算する。
+引数:
+billing_year: 請求年
+billing_month: 請求月
+dispensing_year: 調剤年（参照渡し）
+dispensing_month: 調剤月（参照渡し）
+引用元の関数: なし
+使用変数: なし
+8. SetTemplateInfo Function
+目的: テンプレート情報を設定し、シート名を変更する。
+引数:
+report_book: ワークブックオブジェクト
+billing_year: 請求年
+billing_month: 請求月
+引用元の関数: CalculateDispensingDate, ConvertEraYear, ConvertToCircledNumber
+使用変数:
+ws_main, ws_sub: ワークシートオブジェクト
+dispensing_year, dispensing_month: 調剤年・月
+send_date: 送信日
+era_info: 元号情報
+era_year: 和暦年
+9. ConvertToCircledNumber Function
+目的: 月を丸付き数字に変換する。
+引数:
+month: 月
+引用元の関数: なし
+使用変数:
+circled_numbers: 丸付き数字の配列
+10. ImportCsvData Sub
+目的: CSVデータをインポートし、ワークシートに転記する。
+引数:
+csv_file_path: CSVファイルのパス
+ws: ワークシートオブジェクト
+file_type: ファイルタイプ
+check_status: ステータスチェックのオプション
+引用元の関数: GetColumnMapping
+使用変数:
+file_system_local, text_stream: FileSystemObjectとTextStream
+column_map: 列マッピング
+line_text: 行テキスト
+data_array: データ配列
+row_index, col_index: 行・列インデックス
+key: キー
+should_transfer: 転記フラグ
+11. GetColumnMapping Function
+目的: ファイルタイプに応じた列マッピングを取得する。
+引数:
+file_type: ファイルタイプ
+引用元の関数: なし
+使用変数:
+column_map: 列マッピング
+k: ループカウンタ
+12. TransferBillingDetails Sub
+目的: 詳細データを詳細シートに転記する。
+引数:
+report_wb: ワークブックオブジェクト
+csv_file_name: CSVファイル名
+dispensing_year: 調剤年
+dispensing_month: 調剤月
+check_status: ステータスチェックのオプション
+引用元の関数: ConvertToCircledNumber, GetDispenseYearMonth, GetPayerType, GetCategoryStartRows, ClassifyMainSheetData, ClassifyMainSheetDataWithStatus, InsertAdditionalRows, WriteDataToDetails
+使用変数:
+ws_main, ws_details: ワークシートオブジェクト
+csv_yymm: 調剤年月
+payer_type: 請求先種別
+start_row_dict: カテゴリ開始行の辞書
+rebill_dict, late_dict, unpaid_dict, assessment_dict: データ辞書
+details_sheet_name: 詳細シート名
+13. GetCategoryStartRows Function
+目的: 詳細シート上の各カテゴリ開始行を取得する。
+引数:
+ws: ワークシートオブジェクト
+payer_type: 請求先種別
+引用元の関数: GetStartRow
+使用変数:
+start_row_dict: カテゴリ開始行の辞書
+social_start_row, kokuho_start_row: 開始行
+14. GetDispenseYearMonth Function
+目的: ワークシートから調剤年月を取得する。
+引数:
+ws: ワークシートオブジェクト
+引用元の関数: なし
+使用変数: なし
+15. GetPayerType Function
+目的: CSVファイル名から請求先種別を取得する。
+引数:
+csv_file_name: CSVファイル名
+引用元の関数: なし
+使用変数:
+base_name, payer_code: ベース名と請求先コード
+16. ClassifyMainSheetData Sub
+目的: メインシートのデータを分類する。
+引数:
+ws: ワークシートオブジェクト
+csv_yymm: 調剤年月
+csv_file_name: CSVファイル名
+rebill_dict, late_dict, unpaid_dict, assessment_dict: データ辞書
+引用元の関数: ConvertToWesternDate
+使用変数:
+last_row, row: 行インデックス
+dispensing_code, dispensing_ym: 調剤コードと年月
+row_data: 行データ
+17. ClassifyMainSheetDataWithStatus Sub
+目的: ステータスを考慮してメインシートのデータを分類する。
+引数:
+ws: ワークシートオブジェクト
+csv_yymm: 調剤年月
+csv_file_name: CSVファイル名
+rebill_dict, late_dict, unpaid_dict, assessment_dict: データ辞書
+引用元の関数: ConvertToWesternDate
+使用変数:
+last_row, row: 行インデックス
+dispensing_code, dispensing_ym: 調剤コードと年月
+row_data: 行データ
+18. InsertAdditionalRows Sub
+目的: 必要に応じて詳細シートに追加行を挿入する。
+引数:
+ws: ワークシートオブジェクト
+start_row_dict: カテゴリ開始行の辞書
+rebill_count, late_count, assessment_count: 各カテゴリのカウント
+引用元の関数: なし
+使用変数:
+a, b, c: 追加行数
+19. WriteDataToDetails Sub
+目的: データを詳細シートに転記する。
+引数:
+ws: ワークシートオブジェクト
+start_row_dict: カテゴリ開始行の辞書
+rebill_dict, late_dict, unpaid_dict, assessment_dict: データ辞書
+payer_type: 請求先種別
+引用元の関数: TransferData
+使用変数: なし
+20. TransferData Function
+目的: データ辞書の内容を詳細シートに転記する。
+引数:
+dataDict: データ辞書
+ws: ワークシートオブジェクト
+start_row: 開始行
+payer_type: 請求先種別
+引用元の関数: なし
+使用変数:
+key, row_data: キーと行データ
+r: 行インデックス
+payer_col: 請求先列
+21. GetStartRow Function
+目的: 指定されたカテゴリ名の開始行を取得する。
+引数:
+ws: ワークシートオブジェクト
+category_name: カテゴリ名
+引用元の関数: なし
+使用変数:
+found_cell: 検索結果のセル
+22. ConvertToWesternDate Function
+目的: 調剤コードを西暦年月に変換する。
+引数:
+dispensing_code: 調剤コード
+引用元の関数: なし
+使用変数:
+era_code, year_num, western_year, month_part: 元号コード、年数、月部分
+23. SortFileCollection Function
+目的: ファイルコレクションを年月順にソートする。
+引数:
+files: ファイルコレクション
+file_system: FileSystemObject
+file_type: ファイルタイプ
+引用元の関数: GetYearMonthFromFile
+使用変数:
+sorted_files, file_array: ソートされたファイルコレクションと配列
+i, j, count: ループカウンタと要素数
+year1, month1, year2, month2: 年月
+24. GetYearMonthFromFile Function
+目的: ファイル名から請求年月を取得する。
+引数:
+file_path: ファイルパス
+file_type: ファイルタイプ
+dispensing_year: 調剤年（参照渡し）
+dispensing_month: 調剤月（参照渡し）
+引用元の関数: なし
+使用変数:
+file_name, base_name: ファイル名とベース名
+billing_year, billing_month: 請求年・月
+code_part, era_code, era_year: コード部分、元号コード、年数
+25. ConvertEraYear Function
+目的: 西暦年から元号情報を取得する。
+引数:
+western_year: 西暦年
+return_dict: 辞書を返すオプション
+引用元の関数: なし
+使用変数:
+era, era_year: 元号と年数
+result: 結果の辞書
+26. GetEraInfo Function
+目的: 西暦年から元号コードと年数を取得する。
+引数:
+western_year: 西暦年
+era_code: 元号コード（参照渡し）
+era_year: 年数（参照渡し）
+引用元の関数: なし
+使用変数: なし
+27. CalculateEraYear Function
+目的: 西暦年から和暦年を計算する。
+引数:
+western_year: 西暦年
+引用元の関数: なし
+使用変数: なし
+28. CleanupObjects Sub
+目的: オブジェクトを解放する。
+引数:
+objects: オブジェクトの可変引数
+引用元の関数: なし
+使用変数:
+obj: オブジェクト
+この詳細設計を基に、コードの整理や改善を進めることができます。必要に応じて、各関数のロジックを見直し、最適化を図ってください。
