@@ -190,30 +190,26 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                 GoTo NextFile
             End If
             Dim era_code As String
+            ' 元号コードを設定
             era_code = Mid(file.Name, 18, 1)
+            era_year_val = CInt(Mid(file.Name, 19, 2))
             billing_month = Mid(file.Name, 21, 2)
             
-            ' 元号コードを設定
             Select Case era_code
                 Case "5"  ' 令和
                     era_letter = "R"
-                    era_year_val = CInt(Mid(file.Name, 19, 2))
                     billing_year = CStr(2018 + era_year_val)
                 Case "4"  ' 平成
                     era_letter = "H"
-                    era_year_val = CInt(Mid(file.Name, 19, 2))
                     billing_year = CStr(1988 + era_year_val)
                 Case "3"  ' 昭和
                     era_letter = "S"
-                    era_year_val = CInt(Mid(file.Name, 19, 2))
                     billing_year = CStr(1925 + era_year_val)
                 Case "2"  ' 大正
                     era_letter = "T"
-                    era_year_val = CInt(Mid(file.Name, 19, 2))
                     billing_year = CStr(1911 + era_year_val)
                 Case "1"  ' 明治
                     era_letter = "M"
-                    era_year_val = CInt(Mid(file.Name, 19, 2))
                     billing_year = CStr(1867 + era_year_val)
             End Select
         End If
@@ -583,7 +579,7 @@ Function CalculateDispensingDate(ByVal billing_year As Integer, ByVal billing_mo
     CalculateDispensingDate = True
 End Function
 
-Function SetTemplateInfo(report_book As Workbook, billing_year As Integer, billing_month As Integer) As Boolean
+Function SetTemplateInfo(report_book As Workbook, ByVal billing_year As Integer, ByVal billing_month As Integer) As Boolean
     Dim ws_main As Worksheet, ws_sub As Worksheet
     Dim dispensing_year As Integer, dispensing_month As Integer
     Dim send_date As String
@@ -646,11 +642,7 @@ End Function
 Function ConvertToCircledNumber(month As Integer) As String
     Dim circled_numbers As Variant
     circled_numbers = Array("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫")
-    If month >= 1 And month <= 12 Then
-        ConvertToCircledNumber = circled_numbers(month - 1)
-    Else
-        ConvertToCircledNumber = CStr(month)
-    End If
+    ConvertToCircledNumber = circled_numbers(month)
 End Function
 
 Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String, Optional check_status As Boolean = False)
