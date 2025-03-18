@@ -218,33 +218,37 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
             End Select
         End If
         
+        Debug.Print "File processing:"
+        Debug.Print "File name: " & file.Name
+        Debug.Print "Billing Year/Month: " & billing_year & "/" & billing_month
+        
         If billing_year <> "" And billing_month <> "" Then
-            year_code = Format(era_year_val, "00")
-            
-            ' 報告書ファイル名を生成
-            Dim report_file_name As String, report_file_path As String
+            ' 報告書ファイル名を生成（請求年月を使用）
             report_file_name = GenerateReportFileNameFromDispensingDate(CInt(billing_year), CInt(billing_month))
+            Debug.Print "Generated report file name: " & report_file_name
+            
             If report_file_name = "" Then
                 MsgBox "ファイル名の生成に失敗しました。", vbExclamation, "エラー"
-                GoTo NextFile  ' エラー時は次のファイルへ
+                GoTo NextFile
             End If
+            
             report_file_path = save_path & "\" & report_file_name
             
             ' ファイルが存在しない場合のみ新規作成
             If Not file_system.FileExists(report_file_path) Then
                 Dim report_wb As Workbook
-                On Error GoTo ErrorHandler
                 Set report_wb = Workbooks.Add(template_path)
                 
                 If Not report_wb Is Nothing Then
-                    Application.DisplayAlerts = False
-                    ' テンプレート情報を設定（シート名の変更も含む）
+                    ' テンプレート情報を設定（請求年月を渡す）
                     If SetTemplateInfo(report_wb, billing_year, billing_month) Then
-                        ' 保存時にリンクを保持しないオプションを追加
+                        Application.DisplayAlerts = False
                         report_wb.SaveAs Filename:=report_file_path, _
                                        FileFormat:=xlOpenXMLWorkbookMacroEnabled, _
                                        Local:=True
+                        Application.DisplayAlerts = True
                     End If
+                    report_wb.Close SaveChanges:=True
                 End If
             End If
         End If
