@@ -141,6 +141,17 @@ End Function
 Function CreateReportFiles(file_system As Object, files As Collection, save_path As String, template_path As String)
     On Error GoTo ErrorHandler
     
+    ' 変数の宣言
+    Dim file As Object
+    Dim billing_year As String, billing_month As String
+    Dim era_letter As String, era_year_val As Integer
+    Dim report_file_name As String, report_file_path As String
+    Dim report_wb As Workbook
+    
+    Debug.Print "Starting CreateReportFiles"
+    Debug.Print "Template path: " & template_path
+    Debug.Print "Save path: " & save_path
+    
     ' テンプレートファイルの存在確認を追加
     If Not file_system.FileExists(template_path) Then
         MsgBox "テンプレートファイルが見つかりません。" & vbCrLf & _
@@ -150,21 +161,11 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
         Exit Function
     End If
     
-    ' 保存先フォルダの存在確認を追加
-    If Not file_system.FolderExists(save_path) Then
-        MsgBox "保存先フォルダが見つかりません。" & vbCrLf & _
-               "パス: " & save_path & vbCrLf & _
-               "発生箇所: CreateReportFiles", _
-               vbCritical, "エラー"
-        Exit Function
-    End If
-    
-    Dim file As Object
-    Dim billing_year As String, billing_month As String
-    Dim era_letter As String, era_year_val As Integer, year_code As String
-    
     For Each file In files
         On Error GoTo ErrorHandler
+        
+        Debug.Print "----------------------------------------"
+        Debug.Print "Processing file: " & file.Name
         
         ' CSVから年月を取得
         billing_year = "": billing_month = ""
@@ -257,12 +258,25 @@ NextFile:
     Exit Function
 
 ErrorHandler:
-    MsgBox "レポートファイル作成中にエラーが発生しました。" & vbCrLf & _
-           "ファイル: " & IIf(Not file Is Nothing, file.Name, "不明") & vbCrLf & _
+    Debug.Print "========== ERROR DETAILS =========="
+    Debug.Print "Error in CreateReportFiles"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "Current file: " & IIf(Not file Is Nothing, file.Name, "Unknown")
+    Debug.Print "Billing Year/Month: " & billing_year & "/" & billing_month
+    Debug.Print "Report file name: " & report_file_name
+    Debug.Print "=================================="
+    
+    MsgBox "ファイル作成中にエラーが発生しました。" & vbCrLf & _
            "エラー番号: " & Err.Number & vbCrLf & _
            "エラー内容: " & Err.Description & vbCrLf & _
-           "発生箇所: CreateReportFiles", _
+           "ファイル: " & IIf(Not file Is Nothing, file.Name, "不明"), _
            vbCritical, "エラー"
+    
+    If Not report_wb Is Nothing Then
+        report_wb.Close SaveChanges:=False
+        Set report_wb = Nothing
+    End If
     Resume NextFile
 End Function
 
