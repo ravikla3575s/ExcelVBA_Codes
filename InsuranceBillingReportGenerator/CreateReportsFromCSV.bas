@@ -224,7 +224,7 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
         
         If billing_year <> "" And billing_month <> "" Then
             ' 報告書ファイル名を生成（請求年月を使用）
-            report_file_name = GenerateReportFileNameFromDispensingDate(CInt(billing_year), CInt(billing_month))
+            report_file_name = GenerateReportFileName(CInt(billing_year), CInt(billing_month))
             Debug.Print "Generated report file name: " & report_file_name
             
             If report_file_name = "" Then
@@ -241,7 +241,7 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
                 
                 If Not report_wb Is Nothing Then
                     ' テンプレート情報を設定（請求年月を渡す）
-                    If SetTemplateInfo(report_wb, billing_year, billing_month) Then
+                    If SetTemplateInfo(report_wb, CInt(billing_year), CInt(billing_month)) Then
                         Application.DisplayAlerts = False
                         report_wb.SaveAs Filename:=report_file_path, _
                                        FileFormat:=xlOpenXMLWorkbookMacroEnabled, _
@@ -308,7 +308,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         Debug.Print "Dispensing year/month: " & dispensing_year & "/" & dispensing_month
         
         ' 報告書ファイル名を生成
-        report_file_name = GenerateReportFileNameFromDispensingDate(dispensing_year, dispensing_month)
+        report_file_name = GenerateReportFileName(dispensing_year, dispensing_month)
         Debug.Print "Generated report file name: " & report_file_name
         
         If report_file_name = "" Then
@@ -515,27 +515,36 @@ Private Function SheetExists(wb As Workbook, sheet_name As String) As Boolean
 End Function
 
 ' 報告書ファイル名を生成する関数（引数名を変更）
-Function GenerateReportFileNameFromDispensingDate(ByVal dispensing_year As Integer, ByVal dispensing_month As Integer) As String
+Function GenerateReportFileName(ByVal billing_year As Integer, ByVal billing_month As Integer) As String
+    Dim dispensing_year As Integer, dispensing_month As Integer
+    
+    ' 調剤年月を計算
+    If Not CalculateDispensingDate(billing_year, billing_month, dispensing_year, dispensing_month) Then
+        MsgBox "調剤年月の計算に失敗しました。", vbExclamation, "エラー"
+        GenerateReportFileName = ""
+        Exit Function
+    End If
+
     ' 入力値の検証を追加
     If dispensing_year < 1868 Or dispensing_year > 2100 Then
         MsgBox "無効な年が指定されました。" & vbCrLf & _
                "年: " & dispensing_year & vbCrLf & _
-               "発生箇所: GenerateReportFileNameFromDispensingDate", _
+               "発生箇所: GenerateReportFileName", _
                vbExclamation, "エラー"
-        GenerateReportFileNameFromDispensingDate = ""
+        GenerateReportFileName = ""
         Exit Function
     End If
     
     If dispensing_month < 1 Or dispensing_month > 12 Then
         MsgBox "無効な月が指定されました。" & vbCrLf & _
                "月: " & dispensing_month & vbCrLf & _
-               "発生箇所: GenerateReportFileNameFromDispensingDate", _
+               "発生箇所: GenerateReportFileName", _
                vbExclamation, "エラー"
-        GenerateReportFileNameFromDispensingDate = ""
+        GenerateReportFileName = ""
         Exit Function
     End If
     
-    Debug.Print "GenerateReportFileNameFromDispensingDate input:"
+    Debug.Print "GenerateReportFileName input:"
     Debug.Print "Dispensing Year: " & dispensing_year
     Debug.Print "Dispensing Month: " & dispensing_month
     
@@ -546,63 +555,53 @@ Function GenerateReportFileNameFromDispensingDate(ByVal dispensing_year As Integ
     If era_info("era") = "" Then
         MsgBox "元号への変換に失敗しました。" & vbCrLf & _
                "調剤年月: " & dispensing_year & "年" & dispensing_month & "月", _
-               vbExclamation, "GenerateReportFileNameFromDispensingDate - エラー"
-        GenerateReportFileNameFromDispensingDate = ""
+               vbExclamation, "GenerateReportFileName - エラー"
+        GenerateReportFileName = ""
         Exit Function
     End If
     
     ' ファイル名を生成（調整なしで直接使用）
-    GenerateReportFileNameFromDispensingDate = "保険請求管理報告書_" & _
+    GenerateReportFileName = "保険請求管理報告書_" & _
                             era_info("era") & _
                             Format(era_info("year"), "00") & "年" & _
                             Format(dispensing_month, "00") & "月調剤分.xlsm"
     
-    Debug.Print "Generated filename: " & GenerateReportFileNameFromDispensingDate
+    Debug.Print "Generated filename: " & GenerateReportFileName
 End Function
 
-Function CalculateDispensingDate(ByVal western_year As Integer, ByVal western_month As Integer, _
+Function CalculateDispensingDate(ByVal billing_year As Integer, ByVal billing_month As Integer, _
     ByRef dispensing_year As Integer, ByRef dispensing_month As Integer) As Boolean
     
-    Dim temp_month As Integer
-    temp_month = western_month - 1
-    
-    If temp_month < 1 Then
-        temp_month = 12
-        dispensing_year = western_year - 1
+    If billing_month = 1 Then
+        dispensing_year = billing_year - 1
+        dispensing_month = 12
     Else
-        dispensing_year = western_year
+        dispensing_year = billing_year
+        dispensing_month = billing_month - 1
     End If
     
-    dispensing_month = temp_month
     CalculateDispensingDate = True
 End Function
 
-Function SetTemplateInfo(report_book As Workbook, billing_year As String, billing_month As String) As Boolean
+Function SetTemplateInfo(report_book As Workbook, billing_year As Integer, billing_month As Integer) As Boolean
     Dim ws_main As Worksheet, ws_sub As Worksheet
-    Dim billing_year_num As Integer, billing_month_num As Integer
     Dim dispensing_year As Integer, dispensing_month As Integer
     Dim send_date As String
 
     On Error GoTo ErrorHandler
 
-    ' 西暦年と請求月の数値化
-    billing_year_num = CInt(billing_year)
-    billing_month_num = CInt(billing_month)
-
-    ' 調剤月の計算（請求月の1ヶ月前が調剤月）
-    If billing_month_num = 1 Then
-        dispensing_year = billing_year_num - 1
-        dispensing_month = 12
-    Else
-        dispensing_year = billing_year_num
-        dispensing_month = billing_month_num - 1
+    ' 調剤年月を計算
+    If Not CalculateDispensingDate(billing_year, billing_month, dispensing_year, dispensing_month) Then
+        MsgBox "調剤年月の計算に失敗しました。", vbExclamation, "エラー"
+        SetTemplateInfo = False
+        Exit Function
     End If
 
     Debug.Print "SetTemplateInfo - Input values:"
-    Debug.Print "Billing Year/Month: " & billing_year_num & "/" & billing_month_num
+    Debug.Print "Billing Year/Month: " & billing_year & "/" & billing_month
     Debug.Print "Dispensing Year/Month: " & dispensing_year & "/" & dispensing_month
 
-    send_date = billing_month_num & "月10日請求分"
+    send_date = billing_month & "月10日請求分"
 
     ' テンプレートシート（シート1: A, シート2: B）を取得
     Set ws_main = report_book.Sheets(1)
@@ -613,7 +612,6 @@ Function SetTemplateInfo(report_book As Workbook, billing_year As String, billin
     Set era_info = ConvertEraYear(dispensing_year, True)
     
     ' シート名変更
-    ' 和暦年を1桁で使用
     Dim era_year As String
     era_year = CStr(era_info("year"))
     
