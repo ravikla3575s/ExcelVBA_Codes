@@ -641,8 +641,12 @@ End Function
 
 Function ConvertToCircledNumber(ByVal month As Integer) As String
     Dim circled_numbers As Variant
-    circled_numbers = Array("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫")
-    ConvertToCircledNumber = circled_numbers(month)
+    circled_numbers = Array("", "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫")  ' インデックス0に空文字を追加
+    If month >= 1 And month <= 12 Then
+        ConvertToCircledNumber = circled_numbers(month)  ' そのままのmonthを使用
+    Else
+        ConvertToCircledNumber = CStr(month)
+    End If
 End Function
 
 Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String, Optional check_status As Boolean = False)
