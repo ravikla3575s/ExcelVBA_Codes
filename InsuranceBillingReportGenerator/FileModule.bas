@@ -385,26 +385,6 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
 
         Debug.Print "Dispensing year/month: " & dispensing_year & "/" & dispensing_month
         
-        ' FIXFファイルの場合、未請求レセプトの確認
-        If file_type_name = "請求確定状況" Then
-            ' 令和年を計算
-            Dim era_year As Integer
-            era_year = dispensing_year - 2018
-            
-            ' 未請求レセプトの確認メッセージ
-            Dim response As VbMsgBoxResult
-            response = MsgBox("令和" & era_year & "年" & dispensing_month & "月レセプトに未請求レセプトはありますか？", _
-                            vbYesNo + vbQuestion, "未請求レセプトの確認")
-            
-            ' 「はい」が選択された場合、ユーザーフォームを表示
-            If response = vbYes Then
-                Dim unclaimed_form As New UnclaimedBillingForm
-                ' 調剤年月を設定
-                unclaimed_form.SetDispensingDate era_year, dispensing_month
-                unclaimed_form.Show
-            End If
-        End If
-        
         ' 報告書ファイル名を生成
         report_file_name = GenerateReportFileName(dispensing_year, dispensing_month)
         Debug.Print "Generated report file name: " & report_file_name
