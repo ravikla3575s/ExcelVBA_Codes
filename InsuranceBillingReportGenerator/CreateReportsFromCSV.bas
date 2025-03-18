@@ -568,18 +568,22 @@ Function SetTemplateInfo(report_book As Workbook, billing_year As String, billin
 
     On Error GoTo ErrorHandler
 
-    ' 西暦年と調剤月の計算
+    ' 西暦年と請求月の数値化
     billing_year_num = CInt(billing_year)
     billing_month_num = CInt(billing_month)
 
-    ' 請求月の計算（請求月 = 調剤月の翌月）
-    dispensing_month = billing_month_num - 1
-    If dispensing_month < 0 Then
-        dispensing_year = billing_year_num - 1  
+    ' 調剤月の計算（請求月の1ヶ月前が調剤月）
+    If billing_month_num = 1 Then
+        dispensing_year = billing_year_num - 1
         dispensing_month = 12
     Else
         dispensing_year = billing_year_num
+        dispensing_month = billing_month_num - 1
     End If
+
+    Debug.Print "SetTemplateInfo - Input values:"
+    Debug.Print "Billing Year/Month: " & billing_year_num & "/" & billing_month_num
+    Debug.Print "Dispensing Year/Month: " & dispensing_year & "/" & dispensing_month
 
     send_date = billing_month_num & "月10日請求分"
 
@@ -587,22 +591,40 @@ Function SetTemplateInfo(report_book As Workbook, billing_year As String, billin
     Set ws_main = report_book.Sheets(1)
     Set ws_sub = report_book.Sheets(2)
 
-    ' シート名変更（シート1を "R{令和YY}.{M}"形式, シート2を丸数字月に）
-    ws_main.Name = "R" & Format(dispensing_year - 2018, "0") & "." & Format(dispensing_month, "0")
+    ' 和暦年の計算
+    Dim era_info As Object
+    Set era_info = ConvertEraYear(dispensing_year, True)
+    
+    ' シート名変更
+    ' 和暦年を1桁で使用
+    Dim era_year As String
+    era_year = CStr(era_info("year"))
+    
+    ' シート名を設定
+    ws_main.Name = "R" & era_year & "." & dispensing_month
     ws_sub.Name = ConvertToCircledNumber(dispensing_month)
+
+    Debug.Print "Sheet names:"
+    Debug.Print "Main sheet: " & ws_main.Name
+    Debug.Print "Sub sheet: " & ws_sub.Name
 
     ' 情報転記（ヘッダ部）
     ws_main.Range("G2").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
     ws_main.Range("I2").Value = send_date
-    ws_main.Range("J2").Value = ThisWorkbook.Sheets(1).Range("B1").Value
+    ws_main.Range("J2").Value = ThisWorkbook.Sheets("設定").Range("B1").Value
     ws_sub.Range("H1").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
     ws_sub.Range("J1").Value = send_date
-    ws_sub.Range("L1").Value = ThisWorkbook.Sheets(1).Range("B1").Value
+    ws_sub.Range("L1").Value = ThisWorkbook.Sheets("設定").Range("B1").Value
 
     SetTemplateInfo = True
     Exit Function
 
 ErrorHandler:
+    Debug.Print "Error in SetTemplateInfo:"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "Billing Year/Month: " & billing_year & "/" & billing_month
+    Debug.Print "Calculated Dispensing Year/Month: " & dispensing_year & "/" & dispensing_month
     SetTemplateInfo = False
 End Function
 
