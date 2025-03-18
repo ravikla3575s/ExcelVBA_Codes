@@ -639,7 +639,7 @@ ErrorHandler:
     SetTemplateInfo = False
 End Function
 
-Function ConvertToCircledNumber(month As Integer) As String
+Function ConvertToCircledNumber(ByVal month As Integer) As String
     Dim circled_numbers As Variant
     circled_numbers = Array("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫")
     ConvertToCircledNumber = circled_numbers(month)
