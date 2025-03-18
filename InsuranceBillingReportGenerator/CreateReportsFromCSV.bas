@@ -676,9 +676,12 @@ Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String,
     ' CSVファイルを読み込み、データ部分を転記
     row_index = 2  ' データは2行目から開始
     
-    ' CSVの1行目（ヘッダー）を読み飛ばす
+    ' CSVの1行目と2行目（ヘッダー）を読み飛ばす
     If Not text_stream.AtEndOfStream Then
-        text_stream.SkipLine
+        text_stream.SkipLine  ' 1行目をスキップ
+        If Not text_stream.AtEndOfStream Then
+            text_stream.SkipLine  ' 2行目をスキップ
+        End If
     End If
     
     ' 残りのデータを転記
