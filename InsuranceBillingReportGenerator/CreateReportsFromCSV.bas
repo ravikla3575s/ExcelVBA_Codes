@@ -591,7 +591,7 @@ Function SetTemplateInfo(report_book As Workbook, billing_year As String, billin
     Set ws_sub = report_book.Sheets(2)
 
     ' シート名変更（シート1を "R{令和YY}.{M}"形式, シート2を丸数字月に）
-    ws_main.Name = "R" & (dispensing_year - 2018) & "." & dispensing_month
+    ws_main.Name = "R" & Format(dispensing_year - 2018, "0") & "." & dispensing_month
     ws_sub.Name = ConvertToCircledNumber(dispensing_month)
 
     ' 情報転記（ヘッダ部）
