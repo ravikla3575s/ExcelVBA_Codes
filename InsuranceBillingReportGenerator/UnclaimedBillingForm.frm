@@ -48,44 +48,18 @@ End Function
 
 ' 請求点数の入力時の処理
 Private Sub txtBillingPoints_Change()
-    Dim currentValue As String
-    Dim newValue As String
-    Dim selectionStart As Long
-    
-    ' カーソル位置を保存
-    selectionStart = Me.txtBillingPoints.SelStart
-    
-    ' 現在の値を取得して変換
-    currentValue = Me.txtBillingPoints.Value
-    newValue = ConvertToHankaku(currentValue)
-    
-    ' 値が変更された場合のみ更新
-    If currentValue <> newValue Then
-        Me.txtBillingPoints.Value = newValue
-        ' カーソル位置を元の位置に戻す
-        Me.txtBillingPoints.SelStart = selectionStart
-    End If
+    Dim cursorPos As Long
+    cursorPos = txtBillingPoints.SelStart
+    txtBillingPoints.Text = UtilityModule.ConvertToHankaku(txtBillingPoints.Text)
+    txtBillingPoints.SelStart = cursorPos
 End Sub
 
 ' 保険割合の入力時の処理
 Private Sub txtInsuranceRatio_Change()
-    Dim currentValue As String
-    Dim newValue As String
-    Dim selectionStart As Long
-    
-    ' カーソル位置を保存
-    selectionStart = Me.txtInsuranceRatio.SelStart
-    
-    ' 現在の値を取得して変換
-    currentValue = Me.txtInsuranceRatio.Value
-    newValue = ConvertToHankaku(currentValue)
-    
-    ' 値が変更された場合のみ更新
-    If currentValue <> newValue Then
-        Me.txtInsuranceRatio.Value = newValue
-        ' カーソル位置を元の位置に戻す
-        Me.txtInsuranceRatio.SelStart = selectionStart
-    End If
+    Dim cursorPos As Long
+    cursorPos = txtInsuranceRatio.SelStart
+    txtInsuranceRatio.Text = UtilityModule.ConvertToHankaku(txtInsuranceRatio.Text)
+    txtInsuranceRatio.SelStart = cursorPos
 End Sub
 
 Public Sub SetDispensingDate(ByVal era_year As Integer, ByVal month As Integer)
