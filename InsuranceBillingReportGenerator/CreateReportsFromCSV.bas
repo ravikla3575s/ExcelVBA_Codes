@@ -288,17 +288,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
             GoTo NextFile
         End If
 
-        Debug.Print "Initial dispensing year/month: " & dispensing_year & "/" & dispensing_month
-        
-        ' 調剤年月を修正（請求月と同じ月を調剤月とする）
-        If dispensing_month = 12 Then
-            dispensing_year = dispensing_year + 1
-            dispensing_month = 1
-        Else
-            dispensing_month = dispensing_month + 1
-        End If
-        
-        Debug.Print "Adjusted dispensing year/month: " & dispensing_year & "/" & dispensing_month
+        Debug.Print "Dispensing year/month: " & dispensing_year & "/" & dispensing_month
         
         ' 報告書ファイル名を生成
         report_file_name = GenerateReportFileNameFromDispensingDate(dispensing_year, dispensing_month)
@@ -427,7 +417,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         If Not process_error Then
             Debug.Print "Processing completed successfully, saving workbook"
             report_wb.Save
-            save_successful = True
+            process_error = True
         Else
             Debug.Print "Processing encountered errors, changes will not be saved"
         End If
@@ -436,8 +426,8 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         If report_wb Is Nothing Then
             Debug.Print "WARNING: report_wb is Nothing before closing"
         Else
-            report_wb.Close SaveChanges:=save_successful
-            Debug.Print "Workbook closed with SaveChanges=" & save_successful
+            report_wb.Close SaveChanges:=process_error
+            Debug.Print "Workbook closed with SaveChanges=" & process_error
         End If
         
         Set ws_csv = Nothing
@@ -447,7 +437,7 @@ NextFile:
         If Not report_wb Is Nothing Then
             Debug.Print "Cleaning up: Closing workbook"
             ' エラーが発生したが、重要な変更がある場合は保存するかどうかをユーザーに確認
-            If Not save_successful And process_error Then
+            If Not process_error Then
                 Dim response As VbMsgBoxResult
                 response = MsgBox("エラーが発生しましたが、変更を保存しますか？" & vbCrLf & _
                                 "ファイル: " & file_obj.Name, _
