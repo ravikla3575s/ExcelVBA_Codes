@@ -290,4 +290,303 @@ End Function
 Private Sub CreateBackup(file_path As String)
     ' ファイルのバックアップを作成
     ' TODO: バックアップ機能の実装
-End Sub 
+End Sub
+
+Function GenerateReportFileName(ByVal billing_year As Integer, ByVal billing_month As Integer) As String
+    On Error GoTo ErrorHandler
+    
+    GenerateReportFileName = ""
+    
+    ' 入力値の検証
+    If billing_year < 1900 Or billing_year > 9999 Then
+        MsgBox "請求年が無効です。" & vbCrLf & _
+               "年: " & billing_year & vbCrLf & _
+               "発生箇所: GenerateReportFileName", _
+               vbExclamation, "エラー"
+        GenerateReportFileName = ""
+        Exit Function
+    End If
+    
+    If billing_month < 1 Or billing_month > 12 Then
+        MsgBox "請求月が無効です。" & vbCrLf & _
+               "月: " & billing_month & vbCrLf & _
+               "発生箇所: GenerateReportFileName", _
+               vbExclamation, "エラー"
+        GenerateReportFileName = ""
+        Exit Function
+    End If
+    
+    Debug.Print "GenerateReportFileName input:"
+    Debug.Print "Billing year: " & billing_year
+    Debug.Print "Billing month: " & billing_month
+    
+    ' 元号情報を取得
+    Dim era_info As Object
+    Set era_info = ConvertEraYear(billing_year, True)
+    
+    If era_info Is Nothing Then
+        MsgBox "元号の変換に失敗しました。" & vbCrLf & _
+               "年: " & billing_year, _
+               vbExclamation, "GenerateReportFileName - エラー"
+        GenerateReportFileName = ""
+        Exit Function
+    End If
+    
+    ' ファイル名を生成
+    GenerateReportFileName = "保険請求管理報告書_" & _
+                            era_info("era") & _
+                            Format(era_info("year"), "00") & "年" & _
+                            Format(billing_month, "00") & "月.xlsm"
+                            
+    Debug.Print "Generated filename: " & GenerateReportFileName
+    Exit Function
+    
+ErrorHandler:
+    Debug.Print "========== ERROR DETAILS =========="
+    Debug.Print "Error occurred in GenerateReportFileName"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "=================================="
+    
+    MsgBox "ファイル名の生成中にエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description, _
+           vbCritical, "エラー"
+           
+    GenerateReportFileName = ""
+End Function
+
+Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_type_name As String)
+    On Error GoTo ErrorHandler
+    
+    Dim file_obj As Object
+    Dim report_file_name As String, report_file_path As String
+    Dim base_name As String, sheet_name As String
+    Dim report_wb As Workbook
+    Dim sheet_exists As Boolean
+    Dim dispensing_year As Integer, dispensing_month As Integer
+    Dim insert_index As Long
+    
+    For Each file_obj In csv_files
+        Dim save_successful As Boolean
+        save_successful = False  ' 保存フラグを初期化
+        
+        Debug.Print "----------------------------------------"
+        Debug.Print "Processing file: " & file_obj.Name
+        Debug.Print "File type: " & file_type_name
+        Debug.Print "File path: " & file_obj.Path
+        
+        ' CSVファイル名から調剤年月を取得
+        If Not GetYearMonthFromFile(file_obj.Path, file_type_name, dispensing_year, dispensing_month) Then
+            Debug.Print "ERROR: Failed to get year/month from file"
+            MsgBox "ファイル " & file_obj.Name & " から調剤年月を取得できませんでした。", vbExclamation, "エラー"
+            GoTo NextFile
+        End If
+
+        Debug.Print "Dispensing year/month: " & dispensing_year & "/" & dispensing_month
+        
+        ' FIXFファイルの場合、未請求レセプトの確認
+        If file_type_name = "請求確定状況" Then
+            ' 令和年を計算
+            Dim era_year As Integer
+            era_year = dispensing_year - 2018
+            
+            ' 未請求レセプトの確認メッセージ
+            Dim response As VbMsgBoxResult
+            response = MsgBox("令和" & era_year & "年" & dispensing_month & "月レセプトに未請求レセプトはありますか？", _
+                            vbYesNo + vbQuestion, "未請求レセプトの確認")
+            
+            ' 「はい」が選択された場合、ユーザーフォームを表示
+            If response = vbYes Then
+                Dim unclaimed_form As New UnclaimedBillingForm
+                ' 調剤年月を設定
+                unclaimed_form.SetDispensingDate era_year, dispensing_month
+                unclaimed_form.Show
+            End If
+        End If
+        
+        ' 報告書ファイル名を生成
+        report_file_name = GenerateReportFileName(dispensing_year, dispensing_month)
+        Debug.Print "Generated report file name: " & report_file_name
+        
+        If report_file_name = "" Then
+            Debug.Print "ERROR: Failed to generate report file name"
+            GoTo NextFile
+        End If
+
+        report_file_path = save_path & "\" & report_file_name
+        Debug.Print "Full report file path: " & report_file_path
+        
+        ' ファイルの存在確認
+        If Not file_system.FileExists(report_file_path) Then
+            Debug.Print "ERROR: Report file does not exist: " & report_file_path
+            GoTo NextFile
+        End If
+        
+        ' ワークブックを開く
+        On Error Resume Next
+        Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=False, UpdateLinks:=False)
+        If Err.Number <> 0 Then
+            Debug.Print "ERROR: Failed to open workbook"
+            Debug.Print "Error number: " & Err.Number
+            Debug.Print "Error description: " & Err.Description
+            On Error GoTo ErrorHandler
+            GoTo NextFile
+        End If
+        On Error GoTo ErrorHandler
+        
+        If report_wb Is Nothing Then
+            Debug.Print "ERROR: Failed to open workbook (report_wb is Nothing)"
+            GoTo NextFile
+        End If
+        
+        Debug.Print "Successfully opened workbook"
+        
+        ' CSVデータをインポートして新規シートに転記
+        base_name = file_system.GetBaseName(file_obj.Name)
+        sheet_name = base_name
+        Debug.Print "Base sheet name: " & sheet_name
+        
+        ' シート名の重複チェックと一意の名前生成
+        Dim sheet_index As Integer
+        sheet_index = 1
+        
+        On Error Resume Next
+        Do
+            sheet_exists = False
+            Dim test_ws As Worksheet
+            Set test_ws = report_wb.Sheets(sheet_name)
+            If Not test_ws Is Nothing Then
+                sheet_exists = True
+                sheet_name = base_name & "_" & Format(sheet_index, "00")
+                sheet_index = sheet_index + 1
+                Debug.Print "Sheet exists, trying new name: " & sheet_name
+            End If
+        Loop While sheet_exists
+        On Error GoTo ErrorHandler
+        
+        Debug.Print "Final sheet name: " & sheet_name
+        
+        ' 新規シートの追加
+        insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.Count)
+        Debug.Print "Insert index: " & insert_index
+        
+        On Error Resume Next
+        Dim ws_csv As Worksheet
+        Set ws_csv = report_wb.Sheets.Add(After:=report_wb.Sheets(insert_index))
+        If Err.Number <> 0 Then
+            Debug.Print "ERROR: Failed to add new sheet"
+            Debug.Print "Error number: " & Err.Number
+            Debug.Print "Error description: " & Err.Description
+            GoTo NextFile
+        End If
+        On Error GoTo ErrorHandler
+        
+        If ws_csv Is Nothing Then
+            Debug.Print "ERROR: Failed to create new sheet (ws_csv is Nothing)"
+            GoTo NextFile
+        End If
+        
+        ws_csv.Name = sheet_name
+        Debug.Print "Successfully created and named new sheet"
+        
+        ' エラーが発生する可能性のある処理の前に On Error Resume Next
+        On Error Resume Next
+        
+        ' 処理が成功したかどうかを確認
+        Dim process_error As Boolean
+        process_error = False
+        
+        ' CSVデータのインポート
+        If file_type_name = "請求確定状況" Then
+            ImportCsvData file_obj.Path, ws_csv, file_type_name, True
+        Else
+            ImportCsvData file_obj.Path, ws_csv, file_type_name, False
+        End If
+        
+        If Err.Number <> 0 Then
+            Debug.Print "ERROR in ImportCsvData: " & Err.Description
+            process_error = True
+        End If
+        
+        ' エラーをリセット
+        Err.Clear
+        
+        ' 詳細データを詳細シートに反映
+        If Not process_error Then
+            Call TransferBillingDetails(report_wb, file_obj.Name, CStr(dispensing_year), _
+                                      Format(dispensing_month, "00"), _
+                                      (file_type_name = "請求確定状況"))
+            
+            If Err.Number <> 0 Then
+                Debug.Print "ERROR in TransferBillingDetails: " & Err.Description
+                process_error = True
+            End If
+        End If
+        
+        ' エラー処理を元に戻す
+        On Error GoTo ErrorHandler
+        
+        ' 処理が成功した場合のみ保存
+        If Not process_error Then
+            Debug.Print "Processing completed successfully, saving workbook"
+            report_wb.Save
+            save_successful = True
+        Else
+            Debug.Print "Processing encountered errors, changes will not be saved"
+        End If
+
+NextFile:
+        If Not report_wb Is Nothing Then
+            Debug.Print "Cleaning up: Closing workbook"
+            ' エラーが発生したが、重要な変更がある場合は保存するかどうかをユーザーに確認
+            If Not save_successful And process_error Then
+                Dim error_response As VbMsgBoxResult
+                error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
+                                      "エラー: " & Err.Description & vbCrLf & _
+                                      "ファイル: " & file_obj.Name, _
+                                      vbYesNo + vbQuestion, "保存の確認")
+                report_wb.Close SaveChanges:=(error_response = vbYes)
+            Else
+                report_wb.Close SaveChanges:=save_successful
+            End If
+            Set report_wb = Nothing
+        End If
+        Set ws_csv = Nothing
+        Debug.Print "----------------------------------------"
+    Next file_obj
+    Exit Function
+
+ErrorHandler:
+    Debug.Print "========== ERROR DETAILS =========="
+    Debug.Print "Error occurred in ProcessCsvFilesByType"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "Current file: " & IIf(Not file_obj Is Nothing, file_obj.Name, "Unknown")
+    Debug.Print "Current report file: " & report_file_name
+    Debug.Print "Current report path: " & report_file_path
+    Debug.Print "Current sheet name: " & sheet_name
+    Debug.Print "Insert index: " & insert_index
+    Debug.Print "Dispensing year: " & dispensing_year
+    Debug.Print "Dispensing month: " & dispensing_month
+    Debug.Print "File type: " & file_type_name
+    Debug.Print "=================================="
+    
+    MsgBox "処理中にエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description & vbCrLf & _
+           "ファイル: " & IIf(Not file_obj Is Nothing, file_obj.Name, "不明"), _
+           vbCritical, "エラー"
+    
+    If Not report_wb Is Nothing Then
+        ' エラーが発生した場合、ユーザーに保存するかどうかを確認
+        Dim error_response As VbMsgBoxResult
+        error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
+                               "エラー: " & Err.Description & vbCrLf & _
+                               "ファイル: " & file_obj.Name, _
+                               vbYesNo + vbQuestion, "保存の確認")
+        report_wb.Close SaveChanges:=(error_response = vbYes)
+        Set report_wb = Nothing
+    End If
+    Resume NextFile
+End Function 
