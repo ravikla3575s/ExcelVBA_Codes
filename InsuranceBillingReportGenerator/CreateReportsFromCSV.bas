@@ -146,7 +146,6 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
     Dim billing_year As String, billing_month As String
     Dim era_letter As String, era_year_val As Integer
     Dim report_file_name As String, report_file_path As String
-    Dim report_wb As Workbook
     
     Debug.Print "Starting CreateReportFiles"
     Debug.Print "Template path: " & template_path
