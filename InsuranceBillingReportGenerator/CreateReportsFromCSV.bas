@@ -767,56 +767,40 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     Dim payer_type As String
     Dim start_row_dict As Object
     Dim rebill_dict As Object, late_dict As Object, unpaid_dict As Object, assessment_dict As Object
-    Dim era_year As Integer
-    Dim era_code As String
     
-    ' 西暦から和暦年を計算
-    Call GetEraInfo(CInt(dispensing_year), era_code, era_year)
-    
-    ' シート名を構築
-    Dim main_sheet_name As String, details_sheet_name As String
-    main_sheet_name = "R" & era_year & "." & dispensing_month
+    ' 丸付数字の月を取得
+    Dim details_sheet_name As String
     details_sheet_name = ConvertToCircledNumber(CInt(dispensing_month))
     
-    Debug.Print "Looking for sheets:"
-    Debug.Print "Main sheet: " & main_sheet_name
-    Debug.Print "Details sheet: " & details_sheet_name
+    Debug.Print "Looking for details sheet: " & details_sheet_name
     
-    ' シートの存在確認
+    ' 詳細シートの存在確認
     On Error Resume Next
-    Set ws_main = report_wb.Sheets(main_sheet_name)
     Set ws_details = report_wb.Sheets(details_sheet_name)
     On Error GoTo ErrorHandler
-    
-    If ws_main Is Nothing Then
-        MsgBox "メインシート '" & main_sheet_name & "' が見つかりません。", vbExclamation, "エラー"
-        Exit Sub
-    End If
     
     If ws_details Is Nothing Then
         MsgBox "詳細シート '" & details_sheet_name & "' が見つかりません。", vbExclamation, "エラー"
         Exit Sub
     End If
     
+    ' メインシートは存在確認せずに取得
+    Set ws_main = report_wb.Sheets(1)
+    
     ' 調剤年月と請求先区分の取得
     csv_yymm = GetDispenseYearMonth(ws_main)
-    If csv_yymm = "" Then
-        Debug.Print "Warning: GetDispenseYearMonth returned empty string"
-        ' エラーメッセージを表示するか、適切な処理を行う
-    End If
-    
     payer_type = GetPayerType(csv_file_name)
-    Debug.Print "Payer Type: " & payer_type
     
     If payer_type = "労災" Then
-        Debug.Print "Skipping 労災 file"
+        Debug.Print "労災データのため、処理をスキップします。"
         Exit Sub
     End If
     
     ' 詳細シート上の各カテゴリ開始行を取得
     Set start_row_dict = GetCategoryStartRows(ws_details, payer_type)
+    
     If start_row_dict.Count = 0 Then
-        MsgBox "カテゴリの開始行が見つかりません。シートの内容を確認してください。", vbExclamation, "エラー"
+        Debug.Print "WARNING: カテゴリの開始行が見つかりません: " & payer_type
         Exit Sub
     End If
     
@@ -844,27 +828,32 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     Exit Sub
 
 ErrorHandler:
+    Debug.Print "========== ERROR DETAILS =========="
+    Debug.Print "Error in TransferBillingDetails"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "Details sheet name: " & details_sheet_name
+    Debug.Print "File name: " & csv_file_name
+    Debug.Print "Payer type: " & payer_type
+    Debug.Print "=================================="
+    
     MsgBox "データ転記中にエラーが発生しました。" & vbCrLf & _
            "エラー番号: " & Err.Number & vbCrLf & _
            "エラー内容: " & Err.Description & vbCrLf & _
-           "ファイル: " & csv_file_name & vbCrLf & _
-           "メインシート: " & main_sheet_name & vbCrLf & _
            "詳細シート: " & details_sheet_name, _
            vbCritical, "エラー"
 End Sub
 
+' GetCategoryStartRows関数も簡略化
 Private Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As Object
     Dim start_row_dict As Object
     Set start_row_dict = CreateObject("Scripting.Dictionary")
     
-    ' デバッグ出力を追加
-    Debug.Print "Searching for category rows in sheet: " & ws.Name
-    Debug.Print "Payer type: " & payer_type
+    Debug.Print "Getting category start rows for: " & payer_type
     
     If payer_type = "社保" Then
         Dim social_start_row As Long
         social_start_row = GetStartRow(ws, "社保返戻再請求")
-        Debug.Print "社保返戻再請求 start row: " & social_start_row
         
         If social_start_row > 0 Then
             start_row_dict.Add "返戻再請求", social_start_row
@@ -875,7 +864,6 @@ Private Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As 
     ElseIf payer_type = "国保" Then
         Dim kokuho_start_row As Long
         kokuho_start_row = GetStartRow(ws, "国保返戻再請求")
-        Debug.Print "国保返戻再請求 start row: " & kokuho_start_row
         
         If kokuho_start_row > 0 Then
             start_row_dict.Add "返戻再請求", kokuho_start_row
