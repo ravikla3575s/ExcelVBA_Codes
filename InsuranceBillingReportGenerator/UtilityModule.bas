@@ -132,4 +132,31 @@ Function TransferData(dataDict As Object, ws As Worksheet, start_row As Long, pa
     Next key
     
     TransferData = True
+End Function
+
+' 全角数字を半角数字に変換する関数
+Public Function ConvertToHankaku(ByVal strText As String) As String
+    Dim i As Long
+    Dim result As String
+    Dim c As String
+    
+    result = ""
+    For i = 1 To Len(strText)
+        c = Mid(strText, i, 1)
+        Select Case c
+            Case "０": result = result & "0"
+            Case "１": result = result & "1"
+            Case "２": result = result & "2"
+            Case "３": result = result & "3"
+            Case "４": result = result & "4"
+            Case "５": result = result & "5"
+            Case "６": result = result & "6"
+            Case "７": result = result & "7"
+            Case "８": result = result & "8"
+            Case "９": result = result & "9"
+            Case Else: result = result & c
+        End Select
+    Next i
+    
+    ConvertToHankaku = result
 End Function 
