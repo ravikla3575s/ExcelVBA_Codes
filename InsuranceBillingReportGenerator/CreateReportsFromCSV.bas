@@ -524,7 +524,7 @@ Function GenerateReportFileNameFromDispensingDate(ByVal dispensing_year As Integ
     ' 調剤年月を計算
     If Not CalculateDispensingDate(dispensing_year, dispensing_month, dispensing_year, dispensing_month) Then
         MsgBox "調剤年月の計算に失敗しました。" & vbCrLf & _
-               "調剤年月: " & dispensing_year & "年" & dispensing_month & "月", _
+               "調剤年月: " & dispensing_year & "年" & dispensing_month, _
                vbExclamation, "GenerateReportFileNameFromDispensingDate - エラー"
         GenerateReportFileNameFromDispensingDate = ""
         Exit Function
@@ -534,7 +534,7 @@ Function GenerateReportFileNameFromDispensingDate(ByVal dispensing_year As Integ
     Set era_info = ConvertEraYear(dispensing_year, True)
     If era_info("era") = "" Then
         MsgBox "元号への変換に失敗しました。" & vbCrLf & _
-               "調剤年月: " & dispensing_year & "年" & dispensing_month & "月", _
+               "調剤年月: " & dispensing_year & "年" & dispensing_month, _
                vbExclamation, "GenerateReportFileNameFromDispensingDate - エラー"
         GenerateReportFileNameFromDispensingDate = ""
         Exit Function
@@ -1141,9 +1141,14 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                 
                 Debug.Print "Billing year/month from file: " & billing_year & "/" & billing_month
                 
-                ' 請求月を調剤月として扱う（調整不要）
-                dispensing_year = billing_year
-                dispensing_month = billing_month
+                ' 調剤月を請求月の1ヶ月前に設定
+                If billing_month = 1 Then
+                    dispensing_year = billing_year - 1
+                    dispensing_month = 12
+                Else
+                    dispensing_year = billing_year
+                    dispensing_month = billing_month - 1
+                End If
                 
                 Debug.Print "Set dispensing year/month to: " & dispensing_year & "/" & dispensing_month
                 GetYearMonthFromFile = True
@@ -1170,9 +1175,14 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                     
                     Debug.Print "Billing year/month from file: " & billing_year & "/" & billing_month
                     
-                    ' 請求月を調剤月として扱う（調整不要）
-                    dispensing_year = billing_year
-                    dispensing_month = billing_month
+                    ' 調剤月を請求月の1ヶ月前に設定
+                    If billing_month = 1 Then
+                        dispensing_year = billing_year - 1
+                        dispensing_month = 12
+                    Else
+                        dispensing_year = billing_year
+                        dispensing_month = billing_month - 1
+                    End If
                     
                     Debug.Print "Set dispensing year/month to: " & dispensing_year & "/" & dispensing_month
                     GetYearMonthFromFile = True
