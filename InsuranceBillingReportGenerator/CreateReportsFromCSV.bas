@@ -1130,33 +1130,26 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
         base_name = Left(file_name, InStrRev(file_name, ".") - 1)
     End If
     
+    Debug.Print "Processing file: " & file_name
+    
     Select Case file_type
         Case "請求確定状況"  ' fixfファイル
-            ' fixfファイルの場合、請求年月から調剤年月を計算
             If Len(file_name) >= 25 Then
                 Dim billing_year As Integer, billing_month As Integer
                 billing_year = CInt(Mid(file_name, 18, 4))
                 billing_month = CInt(Mid(file_name, 22, 2))
                 
-                ' 調剤年月を計算（請求月は調剤月の翌月なので、請求月から1を引く）
-                If billing_month = 1 Then
-                    dispensing_year = billing_year - 1
-                    dispensing_month = 12
-                Else
-                    dispensing_year = billing_year
-                    dispensing_month = billing_month - 1
-                End If
-                GetYearMonthFromFile = True
+                Debug.Print "Billing year/month from file: " & billing_year & "/" & billing_month
                 
-                ' デバッグ出力
-                Debug.Print "Billing Year: " & billing_year
-                Debug.Print "Billing Month: " & billing_month
-                Debug.Print "Dispensing Year: " & dispensing_year
-                Debug.Print "Dispensing Month: " & dispensing_month
+                ' 請求月を調剤月として扱う（調整不要）
+                dispensing_year = billing_year
+                dispensing_month = billing_month
+                
+                Debug.Print "Set dispensing year/month to: " & dispensing_year & "/" & dispensing_month
+                GetYearMonthFromFile = True
             End If
             
         Case "振込額明細書", "返戻内訳書", "増減点連絡書"  ' fmei, henr, zognファイル
-            ' fmei/henr/zognファイルの場合も請求年月から調剤年月を計算
             If Len(base_name) >= 5 Then
                 Dim code_part As String
                 code_part = Right(base_name, 5)
@@ -1166,7 +1159,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                     era_year = CInt(Mid(code_part, 2, 2))
                     billing_month = CInt(Right(code_part, 2))
                     
-                    ' 元号コードから西暦年を計算（請求年）
+                    ' 元号コードから西暦年を計算
                     Select Case era_code
                         Case "5": billing_year = 2018 + era_year  ' 令和
                         Case "4": billing_year = 1988 + era_year  ' 平成
@@ -1174,25 +1167,20 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                         Case "2": billing_year = 1911 + era_year  ' 大正
                         Case "1": billing_year = 1867 + era_year  ' 明治
                     End Select
-
-                    ' 調剤年月を計算（請求月は調剤月の翌月）
-                    If billing_month = 1 Then
-                        dispensing_year = billing_year - 1
-                        dispensing_month = 12
-                    Else
-                        dispensing_year = billing_year
-                        dispensing_month = billing_month - 1
-                    End If
+                    
+                    Debug.Print "Billing year/month from file: " & billing_year & "/" & billing_month
+                    
+                    ' 請求月を調剤月として扱う（調整不要）
+                    dispensing_year = billing_year
+                    dispensing_month = billing_month
+                    
+                    Debug.Print "Set dispensing year/month to: " & dispensing_year & "/" & dispensing_month
                     GetYearMonthFromFile = True
                 End If
             End If
     End Select
 
-    ' デバッグ用のメッセージを追加
-    Debug.Print "File: " & file_name
-    Debug.Print "Type: " & file_type
-    Debug.Print "Dispensing Year: " & dispensing_year
-    Debug.Print "Dispensing Month: " & dispensing_month
+    Debug.Print "Final dispensing year/month: " & dispensing_year & "/" & dispensing_month
 End Function
 
 ' 長時間処理の進捗表示
