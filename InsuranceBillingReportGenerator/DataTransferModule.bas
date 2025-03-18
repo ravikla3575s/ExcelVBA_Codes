@@ -212,6 +212,11 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     ' データの転記
     Call WriteDataToDetails(ws_details, start_row_dict, rebill_dict, late_dict, unpaid_dict, assessment_dict, payer_type)
     
+    ' FIXFファイルの場合、未請求レセプトの確認（詳細シートを渡す）
+    If InStr(LCase(csv_file_name), "fixf") > 0 Then
+        Call CheckAndRegisterUnclaimedBilling(CInt(dispensing_year), CInt(dispensing_month), ws_details)
+    End If
+    
     Exit Sub
 
 ErrorHandler:
@@ -319,4 +324,52 @@ Private Sub ClassifyMainSheetDataWithStatus(ws As Worksheet, csv_yymm As String,
             End If
         End If
     Next row
-End Sub 
+End Sub
+
+Private Function CheckAndRegisterUnclaimedBilling(ByVal dispensing_year As Integer, ByVal dispensing_month As Integer, _
+                                            Optional ByVal ws_details As Worksheet = Nothing) As Boolean
+    ' 令和年を計算
+    Dim era_year As Integer
+    era_year = dispensing_year - 2018
+    
+    ' 未請求レセプトの確認メッセージ
+    Dim response As VbMsgBoxResult
+    response = MsgBox("令和" & era_year & "年" & dispensing_month & "月レセプトに未請求レセプトはありますか？", _
+                    vbYesNo + vbQuestion, "未請求レセプトの確認")
+    
+    ' 「はい」が選択された場合、ユーザーフォームを表示
+    If response = vbYes Then
+        Dim unclaimed_form As New UnclaimedBillingForm
+        ' 調剤年月を設定
+        unclaimed_form.SetDispensingDate era_year, dispensing_month
+        unclaimed_form.Show
+        
+        ' フォームでOKボタンが押された場合、データを転記
+        If unclaimed_form.DialogResult Then
+            ' 詳細シートが指定されている場合、データを転記
+            If Not ws_details Is Nothing Then
+                ' 未請求レセプトの開始行を検索（"未請求"というセルを探す）
+                Dim start_row As Long
+                Dim found_cell As Range
+                
+                Set found_cell = ws_details.Range("A:A").Find("未請求", LookIn:=xlValues)
+                If Not found_cell Is Nothing Then
+                    start_row = found_cell.Row + 1
+                    
+                    ' フォームから取得したデータを転記
+                    With ws_details
+                        .Cells(start_row, "B").Value = "R" & era_year & "." & Format(dispensing_month, "00")
+                        .Cells(start_row, "C").Value = unclaimed_form.BillingPoints
+                        .Cells(start_row, "D").Value = unclaimed_form.InsuranceRatio
+                        .Cells(start_row, "E").Value = unclaimed_form.BillingAmount
+                        .Cells(start_row, "F").Value = unclaimed_form.Remarks
+                    End With
+                End If
+            End If
+        End If
+        
+        CheckAndRegisterUnclaimedBilling = True
+    Else
+        CheckAndRegisterUnclaimedBilling = False
+    End If
+End Function
