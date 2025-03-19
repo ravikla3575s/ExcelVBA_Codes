@@ -373,3 +373,98 @@ Private Function CheckAndRegisterUnclaimedBilling(ByVal dispensing_year As Integ
         CheckAndRegisterUnclaimedBilling = False
     End If
 End Function
+
+Private Function GetCategoryStartRows(ByVal ws As Worksheet, ByVal payer_type As String) As Object
+    Dim start_row_dict As Object
+    Set start_row_dict = CreateObject("Scripting.Dictionary")
+    
+    On Error GoTo ErrorHandler
+    
+    ' 各カテゴリのキーワード
+    Dim categories As Variant
+    categories = Array("再請求", "遅延", "未請求", "査定")
+    
+    ' 検索範囲を設定（A列）
+    Dim search_range As Range
+    Set search_range = ws.Range("A:A")
+    
+    ' 各カテゴリの開始行を検索
+    Dim category As Variant
+    Dim found_cell As Range
+    
+    For Each category In categories
+        ' カテゴリ名を検索
+        Set found_cell = search_range.Find(What:=category, _
+                                         LookIn:=xlValues, _
+                                         LookAt:=xlWhole, _
+                                         MatchCase:=True)
+        
+        If Not found_cell Is Nothing Then
+            ' 見つかった行をディクショナリに追加
+            start_row_dict.Add category, found_cell.Row
+            
+            Debug.Print "Found " & category & " at row " & found_cell.Row
+        Else
+            Debug.Print "Warning: Category '" & category & "' not found"
+        End If
+    Next category
+    
+    ' 社保/国保の区分に応じて、該当する行を返す
+    Dim filtered_dict As Object
+    Set filtered_dict = CreateObject("Scripting.Dictionary")
+    
+    For Each category In start_row_dict.Keys
+        ' 該当する保険種別の行のみを抽出
+        If IsInInsuranceSection(ws, start_row_dict(category), payer_type) Then
+            filtered_dict.Add category, start_row_dict(category)
+            Debug.Print "Added " & category & " for " & payer_type
+        End If
+    Next category
+    
+    Set GetCategoryStartRows = filtered_dict
+    Exit Function
+
+ErrorHandler:
+    Debug.Print "========== ERROR DETAILS =========="
+    Debug.Print "Error in GetCategoryStartRows"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "Payer type: " & payer_type
+    Debug.Print "=================================="
+    
+    MsgBox "カテゴリ開始行の取得中にエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description, _
+           vbCritical, "エラー"
+    
+    Set GetCategoryStartRows = CreateObject("Scripting.Dictionary")
+End Function
+
+Private Function IsInInsuranceSection(ByVal ws As Worksheet, ByVal row As Long, ByVal payer_type As String) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ' 行から上方向に社保/国保の見出しを探す
+    Dim current_row As Long
+    current_row = row
+    
+    Do While current_row > 1
+        Dim cell_value As String
+        cell_value = Trim(ws.Cells(current_row, 1).Value)
+        
+        ' 社保/国保の見出しを検出
+        If cell_value = "社保" Or cell_value = "国保" Then
+            IsInInsuranceSection = (cell_value = payer_type)
+            Exit Function
+        End If
+        
+        current_row = current_row - 1
+    Loop
+    
+    ' 見出しが見つからない場合はFalse
+    IsInInsuranceSection = False
+    Exit Function
+
+ErrorHandler:
+    Debug.Print "Error in IsInInsuranceSection: " & Err.Description
+    IsInInsuranceSection = False
+End Function
