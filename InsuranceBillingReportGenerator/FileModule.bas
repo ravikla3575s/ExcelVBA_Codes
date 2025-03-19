@@ -569,4 +569,44 @@ ErrorHandler:
         Set report_wb = Nothing
     End If
     Resume NextFile
+End Function
+
+Private Function SetTemplateInfo(ByVal wb As Workbook, ByVal billing_year As Integer, ByVal billing_month As Integer) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ' メインシート（1枚目）を取得
+    Dim ws_main As Worksheet
+    Set ws_main = wb.Sheets(1)
+    
+    ' 令和年を計算
+    Dim era_year As Integer
+    era_year = billing_year - 2018
+    
+    ' テンプレートの年月を設定
+    With ws_main
+        ' 年月の設定（例：A1セルに "令和5年4月" のような形式で設定）
+        .Range("A1").Value = "令和" & era_year & "年" & billing_month & "月"
+        
+        ' その他必要な初期設定があれば追加
+        ' ...
+    End With
+    
+    SetTemplateInfo = True
+    Exit Function
+
+ErrorHandler:
+    Debug.Print "========== ERROR DETAILS =========="
+    Debug.Print "Error in SetTemplateInfo"
+    Debug.Print "Error number: " & Err.Number
+    Debug.Print "Error description: " & Err.Description
+    Debug.Print "Billing year: " & billing_year
+    Debug.Print "Billing month: " & billing_month
+    Debug.Print "=================================="
+    
+    MsgBox "テンプレート情報の設定中にエラーが発生しました。" & vbCrLf & _
+           "エラー番号: " & Err.Number & vbCrLf & _
+           "エラー内容: " & Err.Description, _
+           vbCritical, "エラー"
+    
+    SetTemplateInfo = False
 End Function 
