@@ -157,7 +157,7 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     
     ' 丸付数字の月を取得
     Dim details_sheet_name As String
-    details_sheet_name = ConvertToCircledNumber(CInt(dispensing_month))
+    details_sheet_name = UtilityModule.ConvertToCircledNumber(CInt(dispensing_month))
     
     Debug.Print "Looking for details sheet: " & details_sheet_name
     
@@ -184,7 +184,7 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     End If
     
     ' 詳細シート上の各カテゴリ開始行を取得
-    Set start_row_dict = GetCategoryStartRows(ws_details, payer_type)
+    Set start_row_dict = UtilityModule.GetCategoryStartRows(ws_details, payer_type)
     
     If start_row_dict.Count = 0 Then
         Debug.Print "WARNING: カテゴリの開始行が見つかりません: " & payer_type
@@ -276,7 +276,7 @@ Private Sub ClassifyMainSheetData(ws As Worksheet, csv_yymm As String, csv_file_
     
     For row = 2 To last_row
         dispensing_code = ws.Cells(row, 2).Value
-        dispensing_ym = ConvertToWesternDate(dispensing_code)
+        dispensing_ym = UtilityModule.ConvertToWesternDate(dispensing_code)
         
         If csv_yymm <> "" And Right(dispensing_code, 4) <> csv_yymm Then
             row_data = Array(ws.Cells(row, 4).Value, dispensing_ym, ws.Cells(row, 5).Value, ws.Cells(row, 10).Value)
@@ -307,7 +307,7 @@ Private Sub ClassifyMainSheetDataWithStatus(ws As Worksheet, csv_yymm As String,
         ' 請求確定状況をチェック（AD列 = 30列目）
         If ws.Cells(row, 30).Value = "2" Then
             dispensing_code = ws.Cells(row, 2).Value
-            dispensing_ym = ConvertToWesternDate(dispensing_code)
+            dispensing_ym = UtilityModule.ConvertToWesternDate(dispensing_code)
             
             If csv_yymm <> "" And Right(dispensing_code, 4) <> csv_yymm Then
                 row_data = Array(ws.Cells(row, 4).Value, dispensing_ym, ws.Cells(row, 5).Value, ws.Cells(row, 10).Value)
@@ -326,145 +326,183 @@ Private Sub ClassifyMainSheetDataWithStatus(ws As Worksheet, csv_yymm As String,
     Next row
 End Sub
 
+Private Type UnclaimedRecord
+    PatientName As String
+    DispensingDate As String
+    MedicalInstitution As String
+    UnclaimedReason As String
+    BillingDestination As String
+    InsuranceRatio As Integer
+    BillingPoints As Long
+    Remarks As String
+End Type
+
 Private Function CheckAndRegisterUnclaimedBilling(ByVal dispensing_year As Integer, ByVal dispensing_month As Integer, _
                                             Optional ByVal ws_details As Worksheet = Nothing) As Boolean
-    ' 令和年を計算
-    Dim era_year As Integer
-    era_year = dispensing_year - 2018
+    On Error GoTo ErrorHandler
     
-    ' 未請求レセプトの確認メッセージ
     Dim response As VbMsgBoxResult
-    response = MsgBox("令和" & era_year & "年" & dispensing_month & "月レセプトに未請求レセプトはありますか？", _
-                    vbYesNo + vbQuestion, "未請求レセプトの確認")
+    response = MsgBox("未請求レセプトの入力を開始しますか？", vbYesNo + vbQuestion)
     
-    ' 「はい」が選択された場合、ユーザーフォームを表示
     If response = vbYes Then
-        Dim unclaimed_form As New UnclaimedBillingForm
-        ' 調剤年月を設定
-        unclaimed_form.SetDispensingDate era_year, dispensing_month
-        unclaimed_form.Show
+        ' 未請求レセプトデータを格納する二次元配列
+        Dim unclaimedData() As Variant
+        ReDim unclaimedData(1 To 8, 1 To 1)
+        Dim currentColumn As Long
+        currentColumn = 1
         
-        ' フォームでOKボタンが押された場合、データを転記
-        If unclaimed_form.DialogResult Then
-            ' 詳細シートが指定されている場合、データを転記
-            If Not ws_details Is Nothing Then
-                ' 未請求レセプトの開始行を検索（"未請求"というセルを探す）
-                Dim start_row As Long
-                Dim found_cell As Range
+        Dim unclaimed_form As New UnclaimedBillingForm
+        Dim continue_input As Boolean
+        continue_input = True
+        
+        Do While continue_input
+            ' 調剤年月を設定
+            unclaimed_form.SetDispensingDate dispensing_year, dispensing_month
+            
+            ' 編集モードの場合、データをロード
+            If unclaimed_form.CurrentIndex < currentColumn Then
+                unclaimed_form.LoadData unclaimedData, unclaimed_form.CurrentIndex
+            End If
+            
+            unclaimed_form.Show
+            
+            If Not unclaimed_form.DialogResult Then
+                ' キャンセルボタンが押された場合
+                If currentColumn = 1 Then
+                    ' データ未入力でキャンセル
+                    CheckAndRegisterUnclaimedBilling = True
+                    Exit Function
+                Else
+                    ' 既存データがある場合は確認
+                    If MsgBox("入力済みのデータを破棄してよろしいですか？", vbYesNo + vbQuestion) = vbYes Then
+                        Exit Do
+                    End If
+                End If
+            Else
+                ' 配列のサイズを拡張（必要な場合）
+                If currentColumn > UBound(unclaimedData, 2) Then
+                    ReDim Preserve unclaimedData(1 To 8, 1 To currentColumn)
+                End If
                 
-                Set found_cell = ws_details.Range("A:A").Find("未請求", LookIn:=xlValues)
-                If Not found_cell Is Nothing Then
-                    start_row = found_cell.Row + 1
-                    
-                    ' フォームから取得したデータを転記
-                    With ws_details
-                        .Cells(start_row, "B").Value = "R" & era_year & "." & Format(dispensing_month, "00")
-                        .Cells(start_row, "C").Value = unclaimed_form.BillingPoints
-                        .Cells(start_row, "D").Value = unclaimed_form.InsuranceRatio
-                        .Cells(start_row, "E").Value = unclaimed_form.BillingAmount
-                        .Cells(start_row, "F").Value = unclaimed_form.Remarks
-                    End With
+                ' データを配列に格納
+                With unclaimed_form
+                    unclaimedData(1, currentColumn) = .PatientName
+                    unclaimedData(2, currentColumn) = "R" & dispensing_year & "." & Format(dispensing_month, "00")
+                    unclaimedData(3, currentColumn) = .MedicalInstitution
+                    unclaimedData(4, currentColumn) = .UnclaimedReason
+                    unclaimedData(5, currentColumn) = .BillingDestination
+                    unclaimedData(6, currentColumn) = .InsuranceRatio
+                    unclaimedData(7, currentColumn) = .BillingPoints
+                    unclaimedData(8, currentColumn) = .Remarks
+                End With
+                
+                If .ContinueInput Then
+                    ' 次へボタンが押された場合
+                    currentColumn = currentColumn + 1
+                    continue_input = True
+                Else
+                    ' 完了ボタンが押された場合
+                    continue_input = False
                 End If
             End If
-        End If
+        Loop
         
-        CheckAndRegisterUnclaimedBilling = True
-    Else
-        CheckAndRegisterUnclaimedBilling = False
-    End If
-End Function
-
-Private Function GetCategoryStartRows(ByVal ws As Worksheet, ByVal payer_type As String) As Object
-    Dim start_row_dict As Object
-    Set start_row_dict = CreateObject("Scripting.Dictionary")
-    
-    On Error GoTo ErrorHandler
-    
-    ' 各カテゴリのキーワード
-    Dim categories As Variant
-    categories = Array("再請求", "遅延", "未請求", "査定")
-    
-    ' 検索範囲を設定（A列）
-    Dim search_range As Range
-    Set search_range = ws.Range("A:A")
-    
-    ' 各カテゴリの開始行を検索
-    Dim category As Variant
-    Dim found_cell As Range
-    
-    For Each category In categories
-        ' カテゴリ名を検索
-        Set found_cell = search_range.Find(What:=category, _
-                                         LookIn:=xlValues, _
-                                         LookAt:=xlWhole, _
-                                         MatchCase:=True)
-        
-        If Not found_cell Is Nothing Then
-            ' 見つかった行をディクショナリに追加
-            start_row_dict.Add category, found_cell.Row
+        ' データが1件以上入力されている場合のみ、Excelに転記
+        If currentColumn > 0 Then
+            If ws_details Is Nothing Then
+                Set ws_details = ThisWorkbook.Worksheets("未請求一覧")
+            End If
             
-            Debug.Print "Found " & category & " at row " & found_cell.Row
-        Else
-            Debug.Print "Warning: Category '" & category & "' not found"
+            ' 最終行の取得
+            Dim lastRow As Long
+            lastRow = ws_details.Cells(ws_details.Rows.Count, "A").End(xlUp).Row
+            
+            ' データの転記
+            With ws_details
+                .Range(.Cells(lastRow + 1, 1), .Cells(lastRow + currentColumn, 8)).Value = _
+                    WorksheetFunction.Transpose(WorksheetFunction.Transpose(unclaimedData))
+                
+                ' 書式設定
+                .Range(.Cells(lastRow + 1, 1), .Cells(lastRow + currentColumn, 8)).Borders.LineStyle = xlContinuous
+            End With
         End If
-    Next category
+    End If
     
-    ' 社保/国保の区分に応じて、該当する行を返す
-    Dim filtered_dict As Object
-    Set filtered_dict = CreateObject("Scripting.Dictionary")
-    
-    For Each category In start_row_dict.Keys
-        ' 該当する保険種別の行のみを抽出
-        If IsInInsuranceSection(ws, start_row_dict(category), payer_type) Then
-            filtered_dict.Add category, start_row_dict(category)
-            Debug.Print "Added " & category & " for " & payer_type
-        End If
-    Next category
-    
-    Set GetCategoryStartRows = filtered_dict
+    CheckAndRegisterUnclaimedBilling = True
     Exit Function
 
 ErrorHandler:
-    Debug.Print "========== ERROR DETAILS =========="
-    Debug.Print "Error in GetCategoryStartRows"
-    Debug.Print "Error number: " & Err.Number
-    Debug.Print "Error description: " & Err.Description
-    Debug.Print "Payer type: " & payer_type
-    Debug.Print "=================================="
-    
-    MsgBox "カテゴリ開始行の取得中にエラーが発生しました。" & vbCrLf & _
-           "エラー番号: " & Err.Number & vbCrLf & _
-           "エラー内容: " & Err.Description, _
-           vbCritical, "エラー"
-    
-    Set GetCategoryStartRows = CreateObject("Scripting.Dictionary")
+    MsgBox "エラーが発生しました: " & Err.Description, vbCritical
+    CheckAndRegisterUnclaimedBilling = False
 End Function
 
-Private Function IsInInsuranceSection(ByVal ws As Worksheet, ByVal row As Long, ByVal payer_type As String) As Boolean
-    On Error GoTo ErrorHandler
+Private Sub InsertAdditionalRows(ws As Worksheet, start_row_dict As Object, rebill_count As Long, late_count As Long, assessment_count As Long)
+    Dim ws_details As Worksheet
+    Set ws_details = ws
     
-    ' 行から上方向に社保/国保の見出しを探す
-    Dim current_row As Long
-    current_row = row
+    Dim row_index As Long
+    Dim start_row As Long
+    Dim end_row As Long
+    Dim i As Long
     
-    Do While current_row > 1
-        Dim cell_value As String
-        cell_value = Trim(ws.Cells(current_row, 1).Value)
+    ' 各カテゴリの開始行を取得
+    For Each key In start_row_dict.Keys
+        start_row = start_row_dict(key)
+        end_row = start_row + 1
         
-        ' 社保/国保の見出しを検出
-        If cell_value = "社保" Or cell_value = "国保" Then
-            IsInInsuranceSection = (cell_value = payer_type)
-            Exit Function
+        ' 行の追加
+        ws_details.Rows(end_row).Insert Shift:=xlDown, CopyOrigin:=xlFormatFromLeftOrAbove
+        ws_details.Cells(end_row, 1).Value = key
+        
+        ' データの転記
+        If rebill_count > 0 Then
+            ws_details.Cells(end_row, 2).Value = "再請求"
+            rebill_count = rebill_count - 1
+        ElseIf late_count > 0 Then
+            ws_details.Cells(end_row, 2).Value = "遅請求"
+            late_count = late_count - 1
+        ElseIf assessment_count > 0 Then
+            ws_details.Cells(end_row, 2).Value = "算定"
+            assessment_count = assessment_count - 1
         End If
-        
-        current_row = current_row - 1
-    Loop
-    
-    ' 見出しが見つからない場合はFalse
-    IsInInsuranceSection = False
-    Exit Function
+    Next key
+End Sub
 
-ErrorHandler:
-    Debug.Print "Error in IsInInsuranceSection: " & Err.Description
-    IsInInsuranceSection = False
-End Function
+Private Sub WriteDataToDetails(ws As Worksheet, start_row_dict As Object, rebill_dict As Object, late_dict As Object, unpaid_dict As Object, assessment_dict As Object, payer_type As String)
+    Dim ws_details As Worksheet
+    Set ws_details = ws
+    
+    Dim row_index As Long
+    Dim start_row As Long
+    Dim end_row As Long
+    Dim i As Long
+    
+    ' 各カテゴリの開始行を取得
+    For Each key In start_row_dict.Keys
+        start_row = start_row_dict(key)
+        end_row = start_row + 1
+        
+        ' データの転記
+        If rebill_dict.Exists(key) Then
+            ws_details.Cells(end_row, 2).Value = rebill_dict(key)(0)
+            ws_details.Cells(end_row, 3).Value = rebill_dict(key)(1)
+            ws_details.Cells(end_row, 4).Value = rebill_dict(key)(2)
+            ws_details.Cells(end_row, 5).Value = rebill_dict(key)(3)
+        ElseIf late_dict.Exists(key) Then
+            ws_details.Cells(end_row, 2).Value = late_dict(key)(0)
+            ws_details.Cells(end_row, 3).Value = late_dict(key)(1)
+            ws_details.Cells(end_row, 4).Value = late_dict(key)(2)
+            ws_details.Cells(end_row, 5).Value = late_dict(key)(3)
+        ElseIf unpaid_dict.Exists(key) Then
+            ws_details.Cells(end_row, 2).Value = unpaid_dict(key)(0)
+            ws_details.Cells(end_row, 3).Value = unpaid_dict(key)(1)
+            ws_details.Cells(end_row, 4).Value = unpaid_dict(key)(2)
+            ws_details.Cells(end_row, 5).Value = unpaid_dict(key)(3)
+        ElseIf assessment_dict.Exists(key) Then
+            ws_details.Cells(end_row, 2).Value = assessment_dict(key)(0)
+            ws_details.Cells(end_row, 3).Value = assessment_dict(key)(1)
+            ws_details.Cells(end_row, 4).Value = assessment_dict(key)(2)
+            ws_details.Cells(end_row, 5).Value = assessment_dict(key)(3)
+        End If
+    Next key
+End Sub
