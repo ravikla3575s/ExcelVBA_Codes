@@ -521,7 +521,6 @@ NextFile:
             Debug.Print "Cleaning up: Closing workbook"
             ' エラーが発生したが、重要な変更がある場合は保存するかどうかをユーザーに確認
             If Not save_successful And process_error Then
-                Dim error_response As VbMsgBoxResult
                 error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
                                       "エラー: " & Err.Description & vbCrLf & _
                                       "ファイル: " & file_obj.Name, _
