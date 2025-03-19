@@ -1,5 +1,179 @@
 Option Explicit
 
+' 請求先の定数定義
+Private Const BILLING_SHAHO As String = "社保"
+Private Const BILLING_KOKUHO As String = "国保"
+
+' レセプト状況の定数定義
+Private Const STATUS_UNCLAIMED As Long = 1    ' 未請求
+Private Const STATUS_RECLAIM As Long = 2      ' 再請求
+Private Const STATUS_RETURN As Long = 3       ' 返戻
+Private Const STATUS_ADJUSTMENT As Long = 4    ' 加減査定
+
+' 各状況の開始行
+Private Type StartRows
+    Unclaimed As Long    ' 未請求開始行
+    Reclaim As Long      ' 再請求開始行
+    Return As Long       ' 返戻開始行
+    Adjustment As Long   ' 加減査定開始行
+End Type
+
+' 請求先ごとのワークシート名
+Private Const WS_SHAHO As String = "社保未請求一覧"
+Private Const WS_KOKUHO As String = "国保未請求一覧"
+
+' メイン処理関数
+Private Function ProcessBillingData(ByVal dispensing_year As Integer, ByVal dispensing_month As Integer, _
+                                  ByVal status As Long) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ' 社保・国保それぞれの配列を初期化
+    Dim shahoData() As Variant
+    Dim kuhoData() As Variant
+    ReDim shahoData(1 To 8, 1 To 1)
+    ReDim kuhoData(1 To 8, 1 To 1)
+    
+    ' カウンター初期化
+    Dim shahoCount As Long: shahoCount = 1
+    Dim kuhoCount As Long: kuhoCount = 1
+    
+    ' 開始行の取得
+    Dim shahoStartRows As StartRows
+    Dim kuhoStartRows As StartRows
+    Call InitializeStartRows(shahoStartRows, kuhoStartRows)
+    
+    ' フォーム処理
+    Dim billing_form As New UnclaimedBillingForm
+    Dim continue_input As Boolean
+    continue_input = True
+    
+    Do While continue_input
+        billing_form.SetDispensingDate dispensing_year, dispensing_month
+        billing_form.Show
+        
+        If Not billing_form.DialogResult Then
+            If shahoCount = 1 And kuhoCount = 1 Then
+                ' データ未入力でキャンセル
+                ProcessBillingData = True
+                Exit Function
+            Else
+                ' 既存データがある場合は確認
+                If MsgBox("入力済みのデータを破棄してよろしいですか？", vbYesNo + vbQuestion) = vbYes Then
+                    Exit Do
+                End If
+            End If
+        Else
+            ' 請求先に応じて適切な配列に格納
+            If billing_form.BillingDestination = BILLING_SHAHO Then
+                ' 社保配列の拡張チェック
+                If shahoCount > UBound(shahoData, 2) Then
+                    ReDim Preserve shahoData(1 To 8, 1 To shahoCount)
+                End If
+                Call StoreDataInArray(shahoData, shahoCount, billing_form, dispensing_year, dispensing_month)
+                shahoCount = shahoCount + 1
+            Else
+                ' 国保配列の拡張チェック
+                If kuhoCount > UBound(kuhoData, 2) Then
+                    ReDim Preserve kuhoData(1 To 8, 1 To kuhoCount)
+                End If
+                Call StoreDataInArray(kuhoData, kuhoCount, billing_form, dispensing_year, dispensing_month)
+                kuhoCount = kuhoCount + 1
+            End If
+            
+            continue_input = billing_form.ContinueInput
+        End If
+    Loop
+    
+    ' データの転記処理
+    If shahoCount > 1 Then
+        Call WriteDataToWorksheet(shahoData, shahoCount - 1, WS_SHAHO, GetStartRow(shahoStartRows, status))
+    End If
+    
+    If kuhoCount > 1 Then
+        Call WriteDataToWorksheet(kuhoData, kuhoCount - 1, WS_KOKUHO, GetStartRow(kuhoStartRows, status))
+    End If
+    
+    ProcessBillingData = True
+    Exit Function
+    
+ErrorHandler:
+    MsgBox "エラーが発生しました: " & Err.Description, vbCritical
+    ProcessBillingData = False
+End Function
+
+' 開始行の初期化
+Private Sub InitializeStartRows(ByRef shahoRows As StartRows, ByRef kuhoRows As StartRows)
+    ' 社保の開始行
+    With shahoRows
+        .Unclaimed = 2      ' 未請求開始行
+        .Reclaim = 8        ' 再請求開始行
+        .Return = 14        ' 返戻開始行
+        .Adjustment = 20    ' 加減査定開始行
+    End With
+    
+    ' 国保の開始行
+    With kuhoRows
+        .Unclaimed = 2
+        .Reclaim = 8
+        .Return = 14
+        .Adjustment = 20
+    End With
+End Sub
+
+' 状態に応じた開始行の取得
+Private Function GetStartRow(ByRef rows As StartRows, ByVal status As Long) As Long
+    Select Case status
+        Case STATUS_UNCLAIMED
+            GetStartRow = rows.Unclaimed
+        Case STATUS_RECLAIM
+            GetStartRow = rows.Reclaim
+        Case STATUS_RETURN
+            GetStartRow = rows.Return
+        Case STATUS_ADJUSTMENT
+            GetStartRow = rows.Adjustment
+    End Select
+End Function
+
+' 配列へのデータ格納
+Private Sub StoreDataInArray(ByRef dataArray() As Variant, ByVal currentIndex As Long, _
+                           ByVal form As UnclaimedBillingForm, ByVal year As Integer, ByVal month As Integer)
+    With form
+        dataArray(1, currentIndex) = .PatientName
+        dataArray(2, currentIndex) = "R" & year & "." & Format(month, "00")
+        dataArray(3, currentIndex) = .MedicalInstitution
+        dataArray(4, currentIndex) = .UnclaimedReason
+        dataArray(5, currentIndex) = .BillingDestination
+        dataArray(6, currentIndex) = .InsuranceRatio
+        dataArray(7, currentIndex) = .BillingPoints
+        dataArray(8, currentIndex) = .Remarks
+    End With
+End Sub
+
+' ワークシートへのデータ転記
+Private Sub WriteDataToWorksheet(ByRef dataArray() As Variant, ByVal dataCount As Long, _
+                               ByVal wsName As String, ByVal startRow As Long)
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(wsName)
+    
+    ' 現在の行数を確認
+    Dim currentRows As Long
+    currentRows = ws.Range("A" & startRow).End(xlDown).Row - startRow + 1
+    
+    ' 5行以上のデータがある場合、行を追加
+    If currentRows >= 5 Then
+        ws.Rows(startRow + 5).Resize(dataCount).Insert Shift:=xlDown
+    End If
+    
+    ' データの転記
+    With ws
+        .Range(.Cells(startRow, 1), .Cells(startRow + dataCount - 1, 8)).Value = _
+            WorksheetFunction.Transpose(WorksheetFunction.Transpose(dataArray))
+        
+        ' 書式設定
+        .Range(.Cells(startRow, 1), .Cells(startRow + dataCount - 1, 8)).Borders.LineStyle = xlContinuous
+    End With
+End Sub
+
 Sub ImportCsvData(csv_file_path As String, ws As Worksheet, file_type As String, Optional check_status As Boolean = False)
     Dim file_system_local As Object, text_stream As Object
     Dim column_map As Object
