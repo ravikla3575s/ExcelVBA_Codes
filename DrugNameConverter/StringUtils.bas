@@ -283,30 +283,49 @@ End Function
 
 ' 包装形態が一致するかチェックする関数
 Private Function CheckPackageTypeMatch(ByVal drugName As String, ByVal packageType As String) As Boolean
-    ' 包装形態のバリエーションを定義
-    Dim packageVariations As Object
-    Set packageVariations = CreateObject("Scripting.Dictionary")
+    ' 包装形態のバリエーションを定義（CreateObjectを使わない実装）
+    Dim PTPVariations As Variant
+    Dim BulkVariations As Variant
+    Dim SPVariations As Variant
+    Dim DividedVariations As Variant
+    Dim SmallPackageVariations As Variant
+    Dim DispensingVariations As Variant
+    Dim PatientPTPVariations As Variant
     
-    ' 各包装形態の異表記を登録
-    packageVariations.Add "PTP", Array("PTP", "ＰＴＰ", "P.T.P.", "P.T.P")
-    packageVariations.Add "バラ", Array("バラ", "ﾊﾞﾗ", "BARA", "バラ錠")
-    packageVariations.Add "SP", Array("SP", "ＳＰ", "S.P")
-    packageVariations.Add "分包", Array("分包", "ぶんぽう", "分包品")
-    packageVariations.Add "包装小", Array("包装小", "小包装")
-    packageVariations.Add "調剤用", Array("調剤用", "調剤", "調剤用包装")
-    packageVariations.Add "PTP(患者用)", Array("PTP(患者用)", "患者用PTP", "患者用")
+    ' 各包装形態の異表記を配列で定義
+    PTPVariations = Array("PTP", "ＰＴＰ", "P.T.P.", "P.T.P")
+    BulkVariations = Array("バラ", "ﾊﾞﾗ", "BARA", "バラ錠")
+    SPVariations = Array("SP", "ＳＰ", "S.P")
+    DividedVariations = Array("分包", "ぶんぽう", "分包品")
+    SmallPackageVariations = Array("包装小", "小包装")
+    DispensingVariations = Array("調剤用", "調剤", "調剤用包装")
+    PatientPTPVariations = Array("PTP(患者用)", "患者用PTP", "患者用")
     
-    ' 包装形態が定義されているか確認
-    If Not packageVariations.Exists(packageType) Then
-        ' 定義されていない場合は文字列完全一致で確認
-        CheckPackageTypeMatch = (InStr(1, drugName, packageType, vbTextCompare) > 0)
-        Exit Function
-    End If
+    ' 包装形態に応じた変数を選択
+    Dim variations As Variant
+    
+    Select Case packageType
+        Case "PTP"
+            variations = PTPVariations
+        Case "バラ"
+            variations = BulkVariations
+        Case "SP"
+            variations = SPVariations
+        Case "分包"
+            variations = DividedVariations
+        Case "包装小"
+            variations = SmallPackageVariations
+        Case "調剤用"
+            variations = DispensingVariations
+        Case "PTP(患者用)"
+            variations = PatientPTPVariations
+        Case Else
+            ' 定義されていない場合は文字列完全一致で確認
+            CheckPackageTypeMatch = (InStr(1, drugName, packageType, vbTextCompare) > 0)
+            Exit Function
+    End Select
     
     ' 各バリエーションで確認
-    Dim variations As Variant
-    variations = packageVariations(packageType)
-    
     Dim j As Long
     For j = LBound(variations) To UBound(variations)
         If InStr(1, drugName, variations(j), vbTextCompare) > 0 Then
@@ -438,56 +457,4 @@ Public Sub SetupPackageTypeDropdown()
     Next i
     
     MsgBox "包装形態のドロップダウンリストを設定しました。", vbInformation
-End Sub
-
-' ワークブックの初期化と設定を行う関数の修正（ボタン追加部分を削除）
-Public Sub InitializeWorkbook()
-    ' シート1を設定シートとして初期化
-    SetupPackageTypeDropdown
-    
-    ' Mac用の使用方法指示を追加
-    DrugNameConverter.AddInstructions
-    
-    ' シート2を比較対象シートとして初期化
-    Dim targetSheet As Worksheet
-    Set targetSheet = ThisWorkbook.Worksheets(2)
-    
-    With targetSheet.Range("A1:B1")
-        .Merge
-        .Value = "比較対象医薬品リスト"
-        .Font.Bold = True
-        .Font.Size = 14
-        .HorizontalAlignment = xlCenter
-        .Interior.Color = RGB(180, 198, 231) ' 青色の背景
-    End With
-    
-    ' 列ヘッダーを設定
-    targetSheet.Range("A2").Value = "No."
-    targetSheet.Range("B2").Value = "医薬品名"
-    
-    With targetSheet.Range("A2:B2")
-        .Font.Bold = True
-        .Interior.Color = RGB(221, 235, 247) ' 薄い青色の背景
-    End With
-    
-    ' 列幅を調整
-    targetSheet.Columns("A").ColumnWidth = 5
-    targetSheet.Columns("B").ColumnWidth = 50
-    
-    ' 行番号を設定（3行目から30行目まで）
-    Dim i As Long
-    For i = 3 To 30
-        targetSheet.Cells(i, "A").Value = i - 2
-    Next i
-    
-    MsgBox "ワークブックの初期化が完了しました。" & vbCrLf & _
-           "1. 設定シートのB4セルで包装形態を選択してください。" & vbCrLf & _
-           "2. シート2に比較対象の医薬品名を入力してください。" & vbCrLf & _
-           "3. 設定シートのB7以降に検索する医薬品名を入力してください。" & vbCrLf & _
-           "4. メニューから「ツール」→「マクロ」を選択し、「RunDrugNameComparison」を実行してください。", vbInformation
-End Sub
-
-' 比較ボタンをシートに追加する関数
-Private Sub AddComparisonButton()
-    ' 削除
 End Sub
