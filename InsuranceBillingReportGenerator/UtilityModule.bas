@@ -52,155 +52,26 @@ Public Function GetStartRow(ws As Worksheet, category_name As String) As Long
     End If
 End Function
 
-' マーキングされた開始行を検索する関数
-Public Function FindMarkedRow(ws As Worksheet, marker As String) As Long
-    Dim found_cell As Range
-    Dim search_marker As String
-    
-    ' マーキングのフォーマットを確認（既に<<>>が含まれているかどうか）
-    If Left(marker, 2) <> "<<" Then
-        search_marker = "<<" & marker & ">>"
-    Else
-        search_marker = marker
-    End If
-    
-    ' シート全体を検索
-    Set found_cell = ws.Cells.Find(what:=search_marker, LookAt:=xlPart, MatchCase:=False)
-    
-    If Not found_cell Is Nothing Then
-        FindMarkedRow = found_cell.Row
-        Debug.Print "マーカー '" & search_marker & "' を行 " & FindMarkedRow & " で発見しました"
-    Else
-        FindMarkedRow = 0
-        Debug.Print "マーカー '" & search_marker & "' は見つかりませんでした"
-    End If
-End Function
-
-' カテゴリの開始行を取得する関数 - マーキングベースの新バージョン
-Public Function GetCategoryStartRowsFromMarkers(ws As Worksheet, payer_type As String) As Object
-    Dim start_row_dict As Object
-    Set start_row_dict = CreateObject("Scripting.Dictionary")
-    
-    Debug.Print "マーキングから開始行を検索しています: " & payer_type
-    
-    ' 社保関連のマーカーを検索
-    Dim shaho_saiseikyu As Long
-    Dim shaho_tsukiokure As Long
-    Dim shaho_tsukinokuri As Long
-    Dim shaho_henrei As Long
-    Dim shaho_miseikyuu As Long
-    
-    ' 国保関連のマーカーを検索
-    Dim kokuho_saiseikyu As Long
-    Dim kokuho_tsukiokure As Long
-    Dim kokuho_tsukinokuri As Long
-    Dim kokuho_henrei As Long
-    Dim kokuho_miseikyuu As Long
-    
-    ' 介護関連のマーカーを検索
-    Dim kaigo_henrei As Long
-    
-    ' その他のマーカーを検索
-    Dim sonota As Long
-    
-    ' 各マーカーの行を検索
-    shaho_saiseikyu = FindMarkedRow(ws, "社保再請求")
-    shaho_tsukiokure = FindMarkedRow(ws, "社保月遅れ")
-    shaho_tsukinokuri = FindMarkedRow(ws, "社保月送り")
-    shaho_henrei = FindMarkedRow(ws, "社保返戻")
-    shaho_miseikyuu = FindMarkedRow(ws, "社保未請求扱い")
-    
-    kokuho_saiseikyu = FindMarkedRow(ws, "国保再請求")
-    kokuho_tsukiokure = FindMarkedRow(ws, "国保月遅れ")
-    kokuho_tsukinokuri = FindMarkedRow(ws, "国保月送り")
-    kokuho_henrei = FindMarkedRow(ws, "国保返戻")
-    kokuho_miseikyuu = FindMarkedRow(ws, "国保未請求扱い")
-    
-    kaigo_henrei = FindMarkedRow(ws, "介護返戻")
-    
-    sonota = FindMarkedRow(ws, "その他")
-    
-    ' 請求先タイプに基づいてディクショナリを構築
-    If payer_type = "社保" Then
-        If shaho_saiseikyu > 0 Then
-            start_row_dict.Add "再請求", shaho_saiseikyu
-        End If
-        
-        If shaho_tsukiokure > 0 Then
-            start_row_dict.Add "月遅れ請求", shaho_tsukiokure
-        End If
-        
-        If shaho_tsukinokuri > 0 Then
-            start_row_dict.Add "月送り", shaho_tsukinokuri
-        End If
-        
-        If shaho_henrei > 0 Then
-            start_row_dict.Add "返戻・査定", shaho_henrei
-        End If
-        
-        If shaho_miseikyuu > 0 Then
-            start_row_dict.Add "未請求扱い", shaho_miseikyuu
-        End If
-    ElseIf payer_type = "国保" Then
-        If kokuho_saiseikyu > 0 Then
-            start_row_dict.Add "再請求", kokuho_saiseikyu
-        End If
-        
-        If kokuho_tsukiokure > 0 Then
-            start_row_dict.Add "月遅れ請求", kokuho_tsukiokure
-        End If
-        
-        If kokuho_tsukinokuri > 0 Then
-            start_row_dict.Add "月送り", kokuho_tsukinokuri
-        End If
-        
-        If kokuho_henrei > 0 Then
-            start_row_dict.Add "返戻・査定", kokuho_henrei
-        End If
-        
-        If kokuho_miseikyuu > 0 Then
-            start_row_dict.Add "未請求扱い", kokuho_miseikyuu
-        End If
-    ElseIf payer_type = "介護" Then
-        If kaigo_henrei > 0 Then
-            start_row_dict.Add "返戻", kaigo_henrei
-        End If
-    End If
-    
-    ' その他は共通
-    If sonota > 0 Then
-        start_row_dict.Add "その他", sonota
-    End If
-    
-    ' ディクショナリが空の場合（マーカーが見つからない場合）
-    If start_row_dict.Count = 0 Then
-        Debug.Print "WARNING: マーキングが見つかりませんでした。従来の方法でカテゴリ開始行を取得します。"
-        Set start_row_dict = GetCategoryStartRows(ws, payer_type)
-    End If
-    
-    Set GetCategoryStartRowsFromMarkers = start_row_dict
-End Function
-
-' 従来のカテゴリの開始行を取得する関数（バックアップとして残す）
+' カテゴリの開始行を取得する関数
 Public Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As Object
     Dim start_row_dict As Object
     Set start_row_dict = CreateObject("Scripting.Dictionary")
     
-    Debug.Print "従来の方法で開始行を検索しています: " & payer_type
+    Debug.Print "Getting category start rows for: " & payer_type
     
     If payer_type = "社保" Then
         Dim social_start_row As Long
         social_start_row = GetStartRow(ws, "社保返戻再請求")
         
         If social_start_row > 0 Then
-            start_row_dict.Add "再請求", social_start_row
+            start_row_dict.Add "返戻再請求", social_start_row
             start_row_dict.Add "月遅れ請求", GetStartRow(ws, "社保月遅れ請求")
             start_row_dict.Add "返戻・査定", GetStartRow(ws, "社保返戻・査定")
             start_row_dict.Add "未請求扱い", GetStartRow(ws, "社保未請求扱い")
         Else
             ' 見出しが見つからない場合のデフォルト値を設定
             Debug.Print "社保の見出しが見つかりません。デフォルト値を使用します。"
-            start_row_dict.Add "再請求", 3  ' デフォルト開始行
+            start_row_dict.Add "返戻再請求", 3  ' デフォルト開始行
             start_row_dict.Add "月遅れ請求", 8
             start_row_dict.Add "返戻・査定", 13
             start_row_dict.Add "未請求扱い", 18
@@ -210,14 +81,14 @@ Public Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As O
         kokuho_start_row = GetStartRow(ws, "国保返戻再請求")
         
         If kokuho_start_row > 0 Then
-            start_row_dict.Add "再請求", kokuho_start_row
+            start_row_dict.Add "返戻再請求", kokuho_start_row
             start_row_dict.Add "月遅れ請求", GetStartRow(ws, "国保月遅れ請求")
             start_row_dict.Add "返戻・査定", GetStartRow(ws, "国保返戻・査定")
             start_row_dict.Add "未請求扱い", GetStartRow(ws, "国保未請求扱い")
         Else
             ' 見出しが見つからない場合のデフォルト値を設定
             Debug.Print "国保の見出しが見つかりません。デフォルト値を使用します。"
-            start_row_dict.Add "再請求", 23  ' デフォルト開始行
+            start_row_dict.Add "返戻再請求", 23  ' デフォルト開始行
             start_row_dict.Add "月遅れ請求", 28
             start_row_dict.Add "返戻・査定", 33
             start_row_dict.Add "未請求扱い", 38
@@ -227,7 +98,7 @@ Public Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As O
     ' ディクショナリが空の場合（想定外の請求先タイプなど）
     If start_row_dict.Count = 0 Then
         Debug.Print "WARNING: カテゴリの開始行が設定できませんでした。請求先: " & payer_type
-        start_row_dict.Add "再請求", 3
+        start_row_dict.Add "返戻再請求", 3
         start_row_dict.Add "月遅れ請求", 8
         start_row_dict.Add "返戻・査定", 13
         start_row_dict.Add "未請求扱い", 18
@@ -246,7 +117,7 @@ Public Sub InsertAdditionalRows(ws As Worksheet, start_row_dict As Object, _
     If late_count > BASE_DETAIL_ROWS Then b = late_count - BASE_DETAIL_ROWS
     If assessment_count > BASE_DETAIL_ROWS Then c = assessment_count - BASE_DETAIL_ROWS
     
-    If a > 0 Then ws.rows(start_row_dict("再請求") + 1 & ":" & start_row_dict("再請求") + a).Insert Shift:=xlDown
+    If a > 0 Then ws.rows(start_row_dict("返戻再請求") + 1 & ":" & start_row_dict("返戻再請求") + a).Insert Shift:=xlDown
     If b > 0 Then ws.rows(start_row_dict("月遅れ請求") + 1 & ":" & start_row_dict("月遅れ請求") + b).Insert Shift:=xlDown
     If c > 0 Then ws.rows(start_row_dict("返戻・査定") + 1 & ":" & start_row_dict("返戻・査定") + c).Insert Shift:=xlDown
 End Sub
@@ -312,5 +183,130 @@ Public Function ConvertToHankaku(ByVal strText As String) As String
     Next i
     
     ConvertToHankaku = result
+End Function
+
+' マーキングからカテゴリの開始行を取得する関数
+Public Function FindMarkedRow(ws As Worksheet, marker As String) As Long
+    Dim found_cell As Range
+    Dim search_text As String
+    search_text = "<<" & marker & ">>"
+    
+    ' D列（4列目）に限定して検索
+    Set found_cell = ws.Columns(4).Find(What:=search_text, LookIn:=xlValues, LookAt:=xlPart)
+    
+    If Not found_cell Is Nothing Then
+        Debug.Print "Found marker '" & marker & "' at row " & found_cell.Row
+        FindMarkedRow = found_cell.Row
+    Else
+        Debug.Print "WARNING: Marker '" & marker & "' not found"
+        FindMarkedRow = 0
+    End If
+End Function
+
+' マーキングを基にカテゴリ開始行の辞書を作成する関数
+Public Function GetMarkedCategoryRows(ws As Worksheet) As Object
+    Dim category_dict As Object
+    Set category_dict = CreateObject("Scripting.Dictionary")
+    
+    ' すべてのカテゴリとそれに対応するマーカーを定義
+    Dim categories As Object
+    Set categories = CreateObject("Scripting.Dictionary")
+    
+    categories.Add "社保再請求", "社保再請求"
+    categories.Add "国保再請求", "国保再請求"
+    categories.Add "社保月遅れ", "社保月遅れ"
+    categories.Add "国保月遅れ", "国保月遅れ"
+    categories.Add "社保月送り", "社保月送り"
+    categories.Add "国保月送り", "国保月送り"
+    categories.Add "社保返戻", "社保返戻"
+    categories.Add "社保未請求", "社保未請求扱い"
+    categories.Add "国保返戻", "国保返戻"
+    categories.Add "国保未請求", "国保未請求扱い"
+    categories.Add "介護返戻", "介護返戻"
+    categories.Add "その他", "その他"
+    
+    ' 各カテゴリのマーカーを検索
+    Dim cat_key As Variant
+    Dim row_num As Long
+    
+    For Each cat_key In categories.Keys
+        row_num = FindMarkedRow(ws, categories(cat_key))
+        
+        ' マーカーが見つかった場合のみ辞書に追加
+        If row_num > 0 Then
+            category_dict.Add cat_key, row_num
+            Debug.Print "Added category '" & cat_key & "' with row " & row_num
+        End If
+    Next cat_key
+    
+    ' マーカーが一つも見つからなかった場合、従来の方法で検索
+    If category_dict.Count = 0 Then
+        Debug.Print "WARNING: No markers found, using default method"
+        ' 社保カテゴリ
+        category_dict.Add "社保再請求", 3
+        category_dict.Add "社保月遅れ", 8
+        category_dict.Add "社保返戻", 13
+        category_dict.Add "社保未請求", 18
+        ' 国保カテゴリ
+        category_dict.Add "国保再請求", 23
+        category_dict.Add "国保月遅れ", 28
+        category_dict.Add "国保返戻", 33
+        category_dict.Add "国保未請求", 38
+    End If
+    
+    Set GetMarkedCategoryRows = category_dict
+End Function
+
+' 請求先タイプ別にカテゴリ開始行を取得する関数（マーキング対応版）
+Public Function GetCategoryStartRowsByMarker(ws As Worksheet, payer_type As String) As Object
+    Dim all_category_rows As Object
+    Dim filtered_dict As Object
+    
+    Set all_category_rows = GetMarkedCategoryRows(ws)
+    Set filtered_dict = CreateObject("Scripting.Dictionary")
+    
+    Dim cat_key As Variant
+    
+    If payer_type = "社保" Then
+        ' 社保関連のカテゴリのみを抽出
+        For Each cat_key In all_category_rows.Keys
+            If InStr(cat_key, "社保") > 0 Then
+                ' キー名を標準化
+                If cat_key = "社保再請求" Then
+                    filtered_dict.Add "返戻再請求", all_category_rows(cat_key)
+                ElseIf cat_key = "社保月遅れ" Then
+                    filtered_dict.Add "月遅れ請求", all_category_rows(cat_key)
+                ElseIf cat_key = "社保返戻" Then
+                    filtered_dict.Add "返戻・査定", all_category_rows(cat_key)
+                ElseIf cat_key = "社保未請求" Then
+                    filtered_dict.Add "未請求扱い", all_category_rows(cat_key)
+                End If
+            End If
+        Next cat_key
+    ElseIf payer_type = "国保" Then
+        ' 国保関連のカテゴリのみを抽出
+        For Each cat_key In all_category_rows.Keys
+            If InStr(cat_key, "国保") > 0 Then
+                ' キー名を標準化
+                If cat_key = "国保再請求" Then
+                    filtered_dict.Add "返戻再請求", all_category_rows(cat_key)
+                ElseIf cat_key = "国保月遅れ" Then
+                    filtered_dict.Add "月遅れ請求", all_category_rows(cat_key)
+                ElseIf cat_key = "国保返戻" Then
+                    filtered_dict.Add "返戻・査定", all_category_rows(cat_key)
+                ElseIf cat_key = "国保未請求" Then
+                    filtered_dict.Add "未請求扱い", all_category_rows(cat_key)
+                End If
+            End If
+        Next cat_key
+    End If
+    
+    ' 必要なカテゴリが見つからなかった場合は従来の方法で取得
+    If filtered_dict.Count = 0 Then
+        Debug.Print "WARNING: No " & payer_type & " categories found, using default method"
+        Set filtered_dict = GetCategoryStartRows(ws, payer_type)
+    End If
+    
+    Set GetCategoryStartRowsByMarker = filtered_dict
 End Function
 
