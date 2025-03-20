@@ -1,47 +1,49 @@
+Attribute VB_Name = "SetTemplateAndSavePath"
 Sub SetTemplateAndSavePath()
     Dim ws As Worksheet
     Dim templatePath As String
     Dim saveFolder As String
     Dim storeName As String
 
-    ' ã‚·ãƒ¼ãƒˆã‚’æŒ‡å®šï¼ˆå¿…è¦ã«å¿œã˜ã¦å¤‰æ›´ï¼‰
+    ' ƒV[ƒg‚ğw’èi•K—v‚É‰‚¶‚Ä•ÏXj
     Set ws = ThisWorkbook.Sheets(1)
 
-    ' B1: åº—èˆ—åã‚’ãƒ¦ãƒ¼ã‚¶ãƒ¼ã«å…¥åŠ›ã•ã›ã‚‹
-    storeName = InputBox("åº—èˆ—åã‚’å…¥åŠ›ã—ã¦ãã ã•ã„", "åº—èˆ—åã®è¨­å®š")
+    ' B1: “X•Ü–¼‚ğƒ†[ƒU[‚É“ü—Í‚³‚¹‚é
+    storeName = InputBox("“X•Ü–¼‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢", "“X•Ü–¼‚Ìİ’è")
     If storeName = "" Then
-        MsgBox "åº—èˆ—åãŒå…¥åŠ›ã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚å‡¦ç†ã‚’ä¸­æ­¢ã—ã¾ã™ã€‚", vbExclamation
+        MsgBox "“X•Ü–¼‚ª“ü—Í‚³‚ê‚Ä‚¢‚Ü‚¹‚ñBˆ—‚ğ’†~‚µ‚Ü‚·B", vbExclamation
         Exit Sub
     End If
-    ws.Range("B1").Value = storeName
+    ws.Range("B1").value = storeName
 
-    ' B2: ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆä¿å­˜ãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠ
+    ' B2: ƒeƒ“ƒvƒŒ[ƒg•Û‘¶ƒtƒHƒ‹ƒ_‚ğ‘I‘ğ
     With Application.FileDialog(msoFileDialogFolderPicker)
-        .Title = "ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆä¿å­˜ãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠã—ã¦ãã ã•ã„"
+        .Title = "ƒeƒ“ƒvƒŒ[ƒg•Û‘¶ƒtƒHƒ‹ƒ_‚ğ‘I‘ğ‚µ‚Ä‚­‚¾‚³‚¢"
         If .Show = -1 Then
             templatePath = .SelectedItems(1)
         Else
-            MsgBox "ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆä¿å­˜ãƒ•ã‚©ãƒ«ãƒ€ãŒé¸æŠã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚å‡¦ç†ã‚’ä¸­æ­¢ã—ã¾ã™ã€‚", vbExclamation
+            MsgBox "ƒeƒ“ƒvƒŒ[ƒg•Û‘¶ƒtƒHƒ‹ƒ_‚ª‘I‘ğ‚³‚ê‚Ä‚¢‚Ü‚¹‚ñBˆ—‚ğ’†~‚µ‚Ü‚·B", vbExclamation
             Exit Sub
         End If
     End With
-    ws.Range("B2").Value = templatePath
+    ws.Range("B2").value = templatePath
 
-    ' B3: æ–°è¦ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¿å­˜ãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠ
+    ' B3: V‹Kƒtƒ@ƒCƒ‹‚Ì•Û‘¶ƒtƒHƒ‹ƒ_‚ğ‘I‘ğ
     With Application.FileDialog(msoFileDialogFolderPicker)
-        .Title = "æ–°è¦ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¿å­˜ãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠã—ã¦ãã ã•ã„"
+        .Title = "V‹Kƒtƒ@ƒCƒ‹‚Ì•Û‘¶ƒtƒHƒ‹ƒ_‚ğ‘I‘ğ‚µ‚Ä‚­‚¾‚³‚¢"
         If .Show = -1 Then
             saveFolder = .SelectedItems(1)
         Else
-            MsgBox "æ–°è¦ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¿å­˜ãƒ•ã‚©ãƒ«ãƒ€ãŒé¸æŠã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚å‡¦ç†ã‚’ä¸­æ­¢ã—ã¾ã™ã€‚", vbExclamation
+            MsgBox "V‹Kƒtƒ@ƒCƒ‹‚Ì•Û‘¶ƒtƒHƒ‹ƒ_‚ª‘I‘ğ‚³‚ê‚Ä‚¢‚Ü‚¹‚ñBˆ—‚ğ’†~‚µ‚Ü‚·B", vbExclamation
             Exit Sub
         End If
     End With
-    ws.Range("B3").Value = saveFolder
+    ws.Range("B3").value = saveFolder
 
-    ' è¨­å®šå®Œäº†ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸
-    MsgBox "è¨­å®šãŒå®Œäº†ã—ã¾ã—ãŸã€‚" & vbCrLf & _
-           "åº—èˆ—å: " & storeName & vbCrLf & _
-           "ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆä¿å­˜å…ˆ: " & templatePath & vbCrLf & _
-           "æ–°è¦ãƒ•ã‚¡ã‚¤ãƒ«ä¿å­˜å…ˆ: " & saveFolder, vbInformation
+    ' İ’èŠ®—¹ƒƒbƒZ[ƒW
+    MsgBox "İ’è‚ªŠ®—¹‚µ‚Ü‚µ‚½B" & vbCrLf & _
+           "“X•Ü–¼: " & storeName & vbCrLf & _
+           "ƒeƒ“ƒvƒŒ[ƒg•Û‘¶æ: " & templatePath & vbCrLf & _
+           "V‹Kƒtƒ@ƒCƒ‹•Û‘¶æ: " & saveFolder, vbInformation
 End Sub
+

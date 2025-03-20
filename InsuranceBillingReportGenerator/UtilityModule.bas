@@ -1,11 +1,12 @@
+Attribute VB_Name = "UtilityModule"
 Option Explicit
 
-' é•·æ™‚é–“å‡¦ç†ã®é€²æ—è¡¨ç¤º
+' ’·ŠÔˆ—‚Ìi’»•\¦
 Private Sub UpdateProgress(current As Long, total As Long, message As String)
     Application.StatusBar = message & " - " & current & "/" & total
 End Sub
 
-' ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆè§£æ”¾ç”¨ã®é–¢æ•°
+' ƒIƒuƒWƒFƒNƒg‰ğ•ú—p‚ÌŠÖ”
 Private Sub CleanupObjects(ParamArray objects() As Variant)
     Dim obj As Variant
     For Each obj In objects
@@ -18,7 +19,7 @@ Private Sub CleanupObjects(ParamArray objects() As Variant)
     Next obj
 End Sub
 
-' ã‚·ãƒ¼ãƒˆã®å­˜åœ¨ãƒã‚§ãƒƒã‚¯ç”¨ã®é–¢æ•°
+' ƒV[ƒg‚Ì‘¶İƒ`ƒFƒbƒN—p‚ÌŠÖ”
 Private Function SheetExists(wb As Workbook, sheet_name As String) As Boolean
     Dim ws As Worksheet
     
@@ -29,61 +30,61 @@ Private Function SheetExists(wb As Workbook, sheet_name As String) As Boolean
     SheetExists = Not ws Is Nothing
 End Function
 
-' æ•°å­—ã‚’ä¸¸ä»˜ãæ•°å­—ã«å¤‰æ›ã™ã‚‹é–¢æ•°
+' ”š‚ğŠÛ•t‚«”š‚É•ÏŠ·‚·‚éŠÖ”
 Function ConvertToCircledNumber(ByVal month As Integer) As String
     Dim circled_numbers As Variant
-    circled_numbers = Array("", "â‘ ", "â‘¡", "â‘¢", "â‘£", "â‘¤", "â‘¥", "â‘¦", "â‘§", "â‘¨", "â‘©", "â‘ª", "â‘«")  ' ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹0ã«ç©ºæ–‡å­—ã‚’è¿½åŠ 
+    circled_numbers = Array("", "‡@", "‡A", "‡B", "‡C", "‡D", "‡E", "‡F", "‡G", "‡H", "‡I", "‡J", "‡K")  ' ƒCƒ“ƒfƒbƒNƒX0‚É‹ó•¶š‚ğ’Ç‰Á
     If month >= 1 And month <= 12 Then
-        ConvertToCircledNumber = circled_numbers(month)  ' ãã®ã¾ã¾ã®monthã‚’ä½¿ç”¨
+        ConvertToCircledNumber = circled_numbers(month)  ' ‚»‚Ì‚Ü‚Ü‚Ìmonth‚ğg—p
     Else
         ConvertToCircledNumber = CStr(month)
     End If
 End Function
 
-' ã‚«ãƒ†ã‚´ãƒªã®é–‹å§‹è¡Œã‚’å–å¾—ã™ã‚‹é–¢æ•°
+' ƒJƒeƒSƒŠ‚ÌŠJns‚ğæ“¾‚·‚éŠÖ”
 Public Function GetStartRow(ws As Worksheet, category_name As String) As Long
     Dim found_cell As Range
     Set found_cell = ws.Cells.Find(what:=category_name, LookAt:=xlWhole)
     If Not found_cell Is Nothing Then
-        GetStartRow = found_cell.Row
+        GetStartRow = found_cell.row
     Else
         GetStartRow = 0
     End If
 End Function
 
-' ã‚«ãƒ†ã‚´ãƒªã®é–‹å§‹è¡Œã‚’å–å¾—ã™ã‚‹é–¢æ•°
+' ƒJƒeƒSƒŠ‚ÌŠJns‚ğæ“¾‚·‚éŠÖ”
 Public Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As Object
     Dim start_row_dict As Object
     Set start_row_dict = CreateObject("Scripting.Dictionary")
     
     Debug.Print "Getting category start rows for: " & payer_type
     
-    If payer_type = "ç¤¾ä¿" Then
+    If payer_type = "Ğ•Û" Then
         Dim social_start_row As Long
-        social_start_row = GetStartRow(ws, "ç¤¾ä¿è¿”æˆ»å†è«‹æ±‚")
+        social_start_row = GetStartRow(ws, "Ğ•Û•Ô–ßÄ¿‹")
         
         If social_start_row > 0 Then
-            start_row_dict.Add "è¿”æˆ»å†è«‹æ±‚", social_start_row
-            start_row_dict.Add "æœˆé…ã‚Œè«‹æ±‚", GetStartRow(ws, "ç¤¾ä¿æœˆé…ã‚Œè«‹æ±‚")
-            start_row_dict.Add "è¿”æˆ»ãƒ»æŸ»å®š", GetStartRow(ws, "ç¤¾ä¿è¿”æˆ»ãƒ»æŸ»å®š")
-            start_row_dict.Add "æœªè«‹æ±‚æ‰±ã„", GetStartRow(ws, "ç¤¾ä¿æœªè«‹æ±‚æ‰±ã„")
+            start_row_dict.Add "•Ô–ßÄ¿‹", social_start_row
+            start_row_dict.Add "Œ’x‚ê¿‹", GetStartRow(ws, "Ğ•ÛŒ’x‚ê¿‹")
+            start_row_dict.Add "•Ô–ßE¸’è", GetStartRow(ws, "Ğ•Û•Ô–ßE¸’è")
+            start_row_dict.Add "–¢¿‹ˆµ‚¢", GetStartRow(ws, "Ğ•Û–¢¿‹ˆµ‚¢")
         End If
-    ElseIf payer_type = "å›½ä¿" Then
+    ElseIf payer_type = "‘•Û" Then
         Dim kokuho_start_row As Long
-        kokuho_start_row = GetStartRow(ws, "å›½ä¿è¿”æˆ»å†è«‹æ±‚")
+        kokuho_start_row = GetStartRow(ws, "‘•Û•Ô–ßÄ¿‹")
         
         If kokuho_start_row > 0 Then
-            start_row_dict.Add "è¿”æˆ»å†è«‹æ±‚", kokuho_start_row
-            start_row_dict.Add "æœˆé…ã‚Œè«‹æ±‚", GetStartRow(ws, "å›½ä¿æœˆé…ã‚Œè«‹æ±‚")
-            start_row_dict.Add "è¿”æˆ»ãƒ»æŸ»å®š", GetStartRow(ws, "å›½ä¿è¿”æˆ»ãƒ»æŸ»å®š")
-            start_row_dict.Add "æœªè«‹æ±‚æ‰±ã„", GetStartRow(ws, "å›½ä¿æœªè«‹æ±‚æ‰±ã„")
+            start_row_dict.Add "•Ô–ßÄ¿‹", kokuho_start_row
+            start_row_dict.Add "Œ’x‚ê¿‹", GetStartRow(ws, "‘•ÛŒ’x‚ê¿‹")
+            start_row_dict.Add "•Ô–ßE¸’è", GetStartRow(ws, "‘•Û•Ô–ßE¸’è")
+            start_row_dict.Add "–¢¿‹ˆµ‚¢", GetStartRow(ws, "‘•Û–¢¿‹ˆµ‚¢")
         End If
     End If
     
     Set GetCategoryStartRows = start_row_dict
 End Function
 
-' è¿½åŠ è¡Œã®æŒ¿å…¥å‡¦ç†
+' ’Ç‰Ás‚Ì‘}“üˆ—
 Public Sub InsertAdditionalRows(ws As Worksheet, start_row_dict As Object, _
     rebill_count As Long, late_count As Long, assessment_count As Long)
     
@@ -93,14 +94,14 @@ Public Sub InsertAdditionalRows(ws As Worksheet, start_row_dict As Object, _
     If late_count > BASE_DETAIL_ROWS Then b = late_count - BASE_DETAIL_ROWS
     If assessment_count > BASE_DETAIL_ROWS Then c = assessment_count - BASE_DETAIL_ROWS
     
-    If a > 0 Then ws.Rows(start_row_dict("è¿”æˆ»å†è«‹æ±‚") + 1 & ":" & start_row_dict("è¿”æˆ»å†è«‹æ±‚") + a).Insert Shift:=xlDown
-    If b > 0 Then ws.Rows(start_row_dict("æœˆé…ã‚Œè«‹æ±‚") + 1 & ":" & start_row_dict("æœˆé…ã‚Œè«‹æ±‚") + b).Insert Shift:=xlDown
-    If c > 0 Then ws.Rows(start_row_dict("è¿”æˆ»ãƒ»æŸ»å®š") + 1 & ":" & start_row_dict("è¿”æˆ»ãƒ»æŸ»å®š") + c).Insert Shift:=xlDown
+    If a > 0 Then ws.rows(start_row_dict("•Ô–ßÄ¿‹") + 1 & ":" & start_row_dict("•Ô–ßÄ¿‹") + a).Insert Shift:=xlDown
+    If b > 0 Then ws.rows(start_row_dict("Œ’x‚ê¿‹") + 1 & ":" & start_row_dict("Œ’x‚ê¿‹") + b).Insert Shift:=xlDown
+    If c > 0 Then ws.rows(start_row_dict("•Ô–ßE¸’è") + 1 & ":" & start_row_dict("•Ô–ßE¸’è") + c).Insert Shift:=xlDown
 End Sub
 
-' ãƒ‡ãƒ¼ã‚¿ã‚’è©³ç´°ã‚·ãƒ¼ãƒˆã«è»¢è¨˜ã™ã‚‹é–¢æ•°
+' ƒf[ƒ^‚ğÚ×ƒV[ƒg‚É“]‹L‚·‚éŠÖ”
 Function TransferData(dataDict As Object, ws As Worksheet, start_row As Long, payer_type As String) As Boolean
-    If dataDict.Count = 0 Then
+    If dataDict.count = 0 Then
         TransferData = False
         Exit Function
     End If
@@ -109,32 +110,32 @@ Function TransferData(dataDict As Object, ws As Worksheet, start_row As Long, pa
     Dim r As Long: r = start_row
     Dim payer_col As Long
 
-    ' ç¤¾ä¿ã¯Håˆ—(8), å›½ä¿ã¯Iåˆ—(9)ã«ç¨®åˆ¥ã‚’è¨˜è¼‰
-    If payer_type = "ç¤¾ä¿" Then
+    ' Ğ•Û‚ÍH—ñ(8), ‘•Û‚ÍI—ñ(9)‚Éí•Ê‚ğ‹LÚ
+    If payer_type = "Ğ•Û" Then
         payer_col = 8
-    ElseIf payer_type = "å›½ä¿" Then
+    ElseIf payer_type = "‘•Û" Then
         payer_col = 9
     Else
-        TransferData = False  ' ãã®ä»–ï¼ˆåŠ´ç½ç­‰ï¼‰ã¯å¯¾è±¡å¤–
+        TransferData = False  ' ‚»‚Ì‘¼i˜JĞ“™j‚Í‘ÎÛŠO
         Exit Function
     End If
 
-    ' å„ãƒ¬ã‚³ãƒ¼ãƒ‰ã‚’æ›¸ãè¾¼ã¿
+    ' ŠeƒŒƒR[ƒh‚ğ‘‚«‚İ
     For Each key In dataDict.Keys
         row_data = dataDict(key)
-        ws.Cells(r, 4).Value = row_data(0)          ' æ‚£è€…æ°å
-        ws.Cells(r, 5).Value = row_data(1)          ' èª¿å‰¤å¹´æœˆ (YY.MMå½¢å¼)
-        ws.Cells(r, 6).Value = row_data(2)          ' åŒ»ç™‚æ©Ÿé–¢å
-        ws.Cells(r, payer_col).Value = payer_type   ' è«‹æ±‚å…ˆç¨®åˆ¥ (ç¤¾ä¿/å›½ä¿)
-        ws.Cells(r, payer_col).Font.Bold = True     ' å¼·èª¿è¡¨ç¤º
-        ws.Cells(r, 10).Value = row_data(3)         ' è«‹æ±‚ç‚¹æ•°
+        ws.Cells(r, 4).value = row_data(0)          ' Š³Ò–¼
+        ws.Cells(r, 5).value = row_data(1)          ' ’²Ü”NŒ (YY.MMŒ`®)
+        ws.Cells(r, 6).value = row_data(2)          ' ˆã—Ã‹@ŠÖ–¼
+        ws.Cells(r, payer_col).value = payer_type   ' ¿‹æí•Ê (Ğ•Û/‘•Û)
+        ws.Cells(r, payer_col).Font.Bold = True     ' ‹­’²•\¦
+        ws.Cells(r, 10).value = row_data(3)         ' ¿‹“_”
         r = r + 1
     Next key
     
     TransferData = True
 End Function
 
-' å…¨è§’æ•°å­—ã‚’åŠè§’æ•°å­—ã«å¤‰æ›ã™ã‚‹é–¢æ•°
+' ‘SŠp”š‚ğ”¼Šp”š‚É•ÏŠ·‚·‚éŠÖ”
 Public Function ConvertToHankaku(ByVal strText As String) As String
     Dim i As Long
     Dim result As String
@@ -144,19 +145,20 @@ Public Function ConvertToHankaku(ByVal strText As String) As String
     For i = 1 To Len(strText)
         c = Mid(strText, i, 1)
         Select Case c
-            Case "ï¼": result = result & "0"
-            Case "ï¼‘": result = result & "1"
-            Case "ï¼’": result = result & "2"
-            Case "ï¼“": result = result & "3"
-            Case "ï¼”": result = result & "4"
-            Case "ï¼•": result = result & "5"
-            Case "ï¼–": result = result & "6"
-            Case "ï¼—": result = result & "7"
-            Case "ï¼˜": result = result & "8"
-            Case "ï¼™": result = result & "9"
+            Case "‚O": result = result & "0"
+            Case "‚P": result = result & "1"
+            Case "‚Q": result = result & "2"
+            Case "‚R": result = result & "3"
+            Case "‚S": result = result & "4"
+            Case "‚T": result = result & "5"
+            Case "‚U": result = result & "6"
+            Case "‚V": result = result & "7"
+            Case "‚W": result = result & "8"
+            Case "‚X": result = result & "9"
             Case Else: result = result & c
         End Select
     Next i
     
     ConvertToHankaku = result
-End Function 
+End Function
+

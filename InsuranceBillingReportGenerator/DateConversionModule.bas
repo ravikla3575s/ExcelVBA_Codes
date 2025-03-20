@@ -1,3 +1,4 @@
+Attribute VB_Name = "DateConversionModule"
 Option Explicit
 
 Function ConvertEraYear(ByVal western_year As Integer, Optional ByVal return_dict As Boolean = False) As Variant
@@ -5,19 +6,19 @@ Function ConvertEraYear(ByVal western_year As Integer, Optional ByVal return_dic
     Dim era_year As Integer
     
     If western_year >= 2019 Then
-        era = "ä»¤å’Œ"
+        era = "—ß˜a"
         era_year = western_year - 2018
     ElseIf western_year >= 1989 Then
-        era = "å¹³æˆ"
+        era = "•½¬"
         era_year = western_year - 1988
     ElseIf western_year >= 1926 Then
-        era = "æ˜­å’Œ"
+        era = "º˜a"
         era_year = western_year - 1925
     ElseIf western_year >= 1912 Then
-        era = "å¤§æ­£"
+        era = "‘å³"
         era_year = western_year - 1911
     ElseIf western_year >= 1868 Then
-        era = "æ˜æ²»"
+        era = "–¾¡"
         era_year = western_year - 1867
     Else
         era = ""
@@ -25,29 +26,29 @@ Function ConvertEraYear(ByVal western_year As Integer, Optional ByVal return_dic
     End If
     
     If return_dict Then
-        ' Dictionary ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’è¿”ã™
+        ' Dictionary ƒIƒuƒWƒFƒNƒg‚ğ•Ô‚·
         Dim result As Object
         Set result = CreateObject("Scripting.Dictionary")
         result.Add "era", era
         result.Add "year", era_year
         Set ConvertEraYear = result
     Else
-        ' å…ƒå·æ–‡å­—åˆ—ã‚’è¿”ã™
+        ' Œ³†•¶š—ñ‚ğ•Ô‚·
         ConvertEraYear = era
     End If
 End Function
 
 Private Function GetEraInfo(western_year As Integer, ByRef era_code As String, ByRef era_year As Integer) As Boolean
     If western_year >= 2019 Then
-        era_code = "5": era_year = western_year - 2018   ' ä»¤å’Œ
+        era_code = "5": era_year = western_year - 2018   ' —ß˜a
     ElseIf western_year >= 1989 Then
-        era_code = "4": era_year = western_year - 1988   ' å¹³æˆ
+        era_code = "4": era_year = western_year - 1988   ' •½¬
     ElseIf western_year >= 1926 Then
-        era_code = "3": era_year = western_year - 1925   ' æ˜­å’Œ
+        era_code = "3": era_year = western_year - 1925   ' º˜a
     ElseIf western_year >= 1912 Then
-        era_code = "2": era_year = western_year - 1911   ' å¤§æ­£
+        era_code = "2": era_year = western_year - 1911   ' ‘å³
     ElseIf western_year >= 1868 Then
-        era_code = "1": era_year = western_year - 1867   ' æ˜æ²»
+        era_code = "1": era_year = western_year - 1867   ' –¾¡
     Else
         era_code = "0": era_year = 0
         GetEraInfo = False
@@ -58,15 +59,15 @@ End Function
 
 Private Function CalculateEraYear(ByVal western_year As Integer) As Integer
     If western_year >= 2019 Then
-        CalculateEraYear = western_year - 2018   ' ä»¤å’Œ
+        CalculateEraYear = western_year - 2018   ' —ß˜a
     ElseIf western_year >= 1989 Then
-        CalculateEraYear = western_year - 1988   ' å¹³æˆ
+        CalculateEraYear = western_year - 1988   ' •½¬
     ElseIf western_year >= 1926 Then
-        CalculateEraYear = western_year - 1925   ' æ˜­å’Œ
+        CalculateEraYear = western_year - 1925   ' º˜a
     ElseIf western_year >= 1912 Then
-        CalculateEraYear = western_year - 1911   ' å¤§æ­£
+        CalculateEraYear = western_year - 1911   ' ‘å³
     ElseIf western_year >= 1868 Then
-        CalculateEraYear = western_year - 1867   ' æ˜æ²»
+        CalculateEraYear = western_year - 1867   ' –¾¡
     Else
         CalculateEraYear = 0
     End If
@@ -82,12 +83,12 @@ Function ConvertToWesternDate(dispensing_code As String) As String
     year_num = CInt(Mid(dispensing_code, 2, 2))
     month_part = Right(dispensing_code, 2)
     Select Case era_code
-        Case "5": western_year = 2018 + year_num   ' ä»¤å’Œ
-        Case "4": western_year = 1988 + year_num   ' å¹³æˆ
-        Case "3": western_year = 1925 + year_num   ' æ˜­å’Œ
-        Case "2": western_year = 1911 + year_num   ' å¤§æ­£
-        Case "1": western_year = 1867 + year_num   ' æ˜æ²»
+        Case "5": western_year = 2018 + year_num   ' —ß˜a
+        Case "4": western_year = 1988 + year_num   ' •½¬
+        Case "3": western_year = 1925 + year_num   ' º˜a
+        Case "2": western_year = 1911 + year_num   ' ‘å³
+        Case "1": western_year = 1867 + year_num   ' –¾¡
         Case Else: western_year = 2000 + year_num
     End Select
     ConvertToWesternDate = Right(CStr(western_year), 2) & "." & month_part
-End Function 
+End Function

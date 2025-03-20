@@ -1,15 +1,16 @@
+Attribute VB_Name = "FileModule"
 Option Explicit
 
-' ã‚¨ãƒ©ãƒ¼å¿œç­”ã‚’ä¿æŒã™ã‚‹ã‚°ãƒ­ãƒ¼ãƒãƒ«å¤‰æ•°
+' ƒGƒ‰[‰“š‚ğ•Û‚·‚éƒOƒ[ƒoƒ‹•Ï”
 Public error_response As VbMsgBoxResult
 
 Function SelectCsvFolder() As String
     With Application.FileDialog(msoFileDialogFolderPicker)
-        .Title = "CSVãƒ•ã‚©ãƒ«ãƒ€ã‚’é¸æŠã—ã¦ãã ã•ã„"
+        .Title = "CSVƒtƒHƒ‹ƒ_‚ğ‘I‘ğ‚µ‚Ä‚­‚¾‚³‚¢"
         If .Show = -1 Then
             SelectCsvFolder = .SelectedItems(1) & "\"
         Else
-            MsgBox "ãƒ•ã‚©ãƒ«ãƒ€ãŒé¸æŠã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚å‡¦ç†ã‚’ä¸­æ­¢ã—ã¾ã™ã€‚", vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+            MsgBox "ƒtƒHƒ‹ƒ_‚ª‘I‘ğ‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½Bˆ—‚ğ’†~‚µ‚Ü‚·B", vbExclamation, "ƒGƒ‰["
             SelectCsvFolder = ""
         End If
     End With
@@ -23,17 +24,17 @@ Function IsFolderEmpty(folder_path As String) As Boolean
         Exit Function
     End If
     Set folder_obj = fso_local.GetFolder(folder_path)
-    If folder_obj.Files.Count = 0 Then
-        IsFolderEmpty = True   ' ãƒ•ã‚¡ã‚¤ãƒ«ãŒä¸€ã¤ã‚‚ãªã„
+    If folder_obj.files.count = 0 Then
+        IsFolderEmpty = True   ' ƒtƒ@ƒCƒ‹‚ªˆê‚Â‚à‚È‚¢
     Else
-        IsFolderEmpty = False  ' ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹
+        IsFolderEmpty = False  ' ƒtƒ@ƒCƒ‹‚ª‘¶İ‚·‚é
     End If
 End Function
 
 Function CreateReportFiles(file_system As Object, files As Collection, save_path As String, template_path As String)
     On Error GoTo ErrorHandler
     
-    ' å¤‰æ•°ã®å®£è¨€
+    ' •Ï”‚ÌéŒ¾
     Dim file As Object
     Dim billing_year As String, billing_month As String
     Dim era_letter As String, era_year_val As Integer
@@ -43,12 +44,12 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
     Debug.Print "Template path: " & template_path
     Debug.Print "Save path: " & save_path
     
-    ' ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆãƒ•ã‚¡ã‚¤ãƒ«ã®å­˜åœ¨ç¢ºèªã‚’è¿½åŠ 
+    ' ƒeƒ“ƒvƒŒ[ƒgƒtƒ@ƒCƒ‹‚Ì‘¶İŠm”F‚ğ’Ç‰Á
     If Not file_system.FileExists(template_path) Then
-        MsgBox "ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚" & vbCrLf & _
-               "ãƒ‘ã‚¹: " & template_path & vbCrLf & _
-               "ç™ºç”Ÿç®‡æ‰€: CreateReportFiles", _
-               vbCritical, "ã‚¨ãƒ©ãƒ¼"
+        MsgBox "ƒeƒ“ƒvƒŒ[ƒgƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB" & vbCrLf & _
+               "ƒpƒX: " & template_path & vbCrLf & _
+               "”­¶‰ÓŠ: CreateReportFiles", _
+               vbCritical, "ƒGƒ‰["
         Exit Function
     End If
     
@@ -58,16 +59,16 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
         Debug.Print "----------------------------------------"
         Debug.Print "Processing file: " & file.Name
         
-        ' CSVã‹ã‚‰å¹´æœˆã‚’å–å¾—
+        ' CSV‚©‚ç”NŒ‚ğæ“¾
         billing_year = "": billing_month = ""
         
-        ' ãƒ•ã‚¡ã‚¤ãƒ«ç¨®é¡ã«ã‚ˆã£ã¦å¹´æœˆå–å¾—æ–¹æ³•ã‚’å¤‰ãˆã‚‹
+        ' ƒtƒ@ƒCƒ‹í—Ş‚É‚æ‚Á‚Ä”NŒæ“¾•û–@‚ğ•Ï‚¦‚é
         If InStr(LCase(file.Name), "fixf") > 0 Then
             If Len(file.Name) < 25 Then
-                MsgBox "FIXFãƒ•ã‚¡ã‚¤ãƒ«ã®å½¢å¼ãŒä¸æ­£ã§ã™ã€‚" & vbCrLf & _
-                       "ãƒ•ã‚¡ã‚¤ãƒ«å: " & file.Name & vbCrLf & _
-                       "å¿…è¦ãªé•·ã•: 25æ–‡å­—ä»¥ä¸Š", _
-                       vbExclamation, "CreateReportFiles - ã‚¨ãƒ©ãƒ¼"
+                MsgBox "FIXFƒtƒ@ƒCƒ‹‚ÌŒ`®‚ª•s³‚Å‚·B" & vbCrLf & _
+                       "ƒtƒ@ƒCƒ‹–¼: " & file.Name & vbCrLf & _
+                       "•K—v‚È’·‚³: 25•¶šˆÈã", _
+                       vbExclamation, "CreateReportFiles - ƒGƒ‰["
                 GoTo NextFile
             End If
             billing_year = Mid(file.Name, 18, 4)
@@ -75,32 +76,33 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
             
         ElseIf InStr(LCase(file.Name), "fmei") > 0 Then
             If Len(file.Name) < 22 Then
-                MsgBox "FMEIãƒ•ã‚¡ã‚¤ãƒ«ã®å½¢å¼ãŒä¸æ­£ã§ã™ã€‚" & vbCrLf & _
-                       "ãƒ•ã‚¡ã‚¤ãƒ«å: " & file.Name & vbCrLf & _
-                       "å¿…è¦ãªé•·ã•: 22æ–‡å­—ä»¥ä¸Š", _
-                       vbExclamation, "CreateReportFiles - ã‚¨ãƒ©ãƒ¼"
+                MsgBox "FMEIƒtƒ@ƒCƒ‹‚ÌŒ`®‚ª•s³‚Å‚·B" & vbCrLf & _
+                       "ƒtƒ@ƒCƒ‹–¼: " & file.Name & vbCrLf & _
+                       "•K—v‚È’·‚³: 22•¶šˆÈã", _
+                       vbExclamation, "CreateReportFiles - ƒGƒ‰["
                 GoTo NextFile
             End If
+            
             Dim era_code As String
-            ' å…ƒå·ã‚³ãƒ¼ãƒ‰ã‚’è¨­å®š
+            ' Œ³†ƒR[ƒh‚ğİ’è
             era_code = Mid(file.Name, 18, 1)
             era_year_val = CInt(Mid(file.Name, 19, 2))
             billing_month = Mid(file.Name, 21, 2)
             
             Select Case era_code
-                Case "5"  ' ä»¤å’Œ
+                Case "5"  ' —ß˜a
                     era_letter = "R"
                     billing_year = CStr(2018 + era_year_val)
-                Case "4"  ' å¹³æˆ
+                Case "4"  ' •½¬
                     era_letter = "H"
                     billing_year = CStr(1988 + era_year_val)
-                Case "3"  ' æ˜­å’Œ
+                Case "3"  ' º˜a
                     era_letter = "S"
                     billing_year = CStr(1925 + era_year_val)
-                Case "2"  ' å¤§æ­£
+                Case "2"  ' ‘å³
                     era_letter = "T"
                     billing_year = CStr(1911 + era_year_val)
-                Case "1"  ' æ˜æ²»
+                Case "1"  ' –¾¡
                     era_letter = "M"
                     billing_year = CStr(1867 + era_year_val)
             End Select
@@ -111,24 +113,35 @@ Function CreateReportFiles(file_system As Object, files As Collection, save_path
         Debug.Print "Billing Year/Month: " & billing_year & "/" & billing_month
         
         If billing_year <> "" And billing_month <> "" Then
-            ' å ±å‘Šæ›¸ãƒ•ã‚¡ã‚¤ãƒ«åã‚’ç”Ÿæˆï¼ˆè«‹æ±‚å¹´æœˆã‚’ä½¿ç”¨ï¼‰
-            report_file_name = GenerateReportFileName(CInt(billing_year), CInt(billing_month))
+        
+            Dim dispensing_year As Integer, dispensing_month As Integer
+            
+            dispensing_year = CInt(billing_year)
+            If CInt(billing_month) < 2 Then
+                dispensing_year = CInt(billing_year) - 1
+                dispensing_month = 12
+            Else
+                dispensing_month = CInt(billing_month) - 1
+            End If
+            
+            ' •ñ‘ƒtƒ@ƒCƒ‹–¼‚ğ¶¬i¿‹”NŒ‚ğg—pj
+            report_file_name = GenerateReportFileName(billing_year, billing_month)
             Debug.Print "Generated report file name: " & report_file_name
             
             If report_file_name = "" Then
-                MsgBox "ãƒ•ã‚¡ã‚¤ãƒ«åã®ç”Ÿæˆã«å¤±æ•—ã—ã¾ã—ãŸã€‚", vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+                MsgBox "ƒtƒ@ƒCƒ‹–¼‚Ì¶¬‚É¸”s‚µ‚Ü‚µ‚½B", vbExclamation, "ƒGƒ‰["
                 GoTo NextFile
             End If
             
             report_file_path = save_path & "\" & report_file_name
             
-            ' ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã—ãªã„å ´åˆã®ã¿æ–°è¦ä½œæˆ
+            ' ƒtƒ@ƒCƒ‹‚ª‘¶İ‚µ‚È‚¢ê‡‚Ì‚İV‹Kì¬
             If Not file_system.FileExists(report_file_path) Then
                 Dim report_wb As Workbook
                 Set report_wb = Workbooks.Add(template_path)
                 
                 If Not report_wb Is Nothing Then
-                    ' ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆæƒ…å ±ã‚’è¨­å®šï¼ˆè«‹æ±‚å¹´æœˆã‚’æ¸¡ã™ï¼‰
+                    ' ƒeƒ“ƒvƒŒ[ƒgî•ñ‚ğİ’èi¿‹”NŒ‚ğ“n‚·j
                     If SetTemplateInfo(report_wb, CInt(billing_year), CInt(billing_month)) Then
                         Application.DisplayAlerts = False
                         report_wb.SaveAs Filename:=report_file_path, _
@@ -154,10 +167,10 @@ ErrorHandler:
     Debug.Print "Report file name: " & report_file_name
     Debug.Print "=================================="
     
-    error_response = MsgBox("ãƒ•ã‚¡ã‚¤ãƒ«ä½œæˆä¸­ã«ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¤‰æ›´ã‚’ä¿å­˜ã—ã¾ã™ã‹ï¼Ÿ" & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼ç•ªå·: " & Err.Number & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼å†…å®¹: " & Err.Description & vbCrLf & _
-                           "ãƒ•ã‚¡ã‚¤ãƒ«: " & IIf(Not file Is Nothing, file.Name, "ä¸æ˜"), _
+    error_response = MsgBox("ƒtƒ@ƒCƒ‹ì¬’†‚ÉƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½B•ÏX‚ğ•Û‘¶‚µ‚Ü‚·‚©H" & vbCrLf & _
+                           "ƒGƒ‰[”Ô†: " & Err.Number & vbCrLf & _
+                           "ƒGƒ‰[“à—e: " & Err.Description & vbCrLf & _
+                           "ƒtƒ@ƒCƒ‹: " & IIf(Not file Is Nothing, file.Name, "•s–¾"), _
                            vbYesNo + vbExclamation)
     
     If error_response = vbYes Then
@@ -175,22 +188,22 @@ Function SortFileCollection(files As Collection, file_system As Object, file_typ
     Dim file_array() As Object
     Dim i As Long, count As Long
     
-    ' Collectionã®è¦ç´ æ•°ã‚’å–å¾—
-    count = files.Count
+    ' Collection‚Ì—v‘f”‚ğæ“¾
+    count = files.count
     If count = 0 Then
         Set SortFileCollection = sorted_files
         Exit Function
     End If
     
-    ' é…åˆ—ã‚’åˆæœŸåŒ–
+    ' ”z—ñ‚ğ‰Šú‰»
     ReDim file_array(1 To count)
     
-    ' Collectionã‚’Arrayã«ã‚³ãƒ”ãƒ¼
+    ' Collection‚ğArray‚ÉƒRƒs[
     For i = 1 To count
         Set file_array(i) = files(i)
     Next i
     
-    ' ãƒãƒ–ãƒ«ã‚½ãƒ¼ãƒˆã§å¹´æœˆé †ã«ã‚½ãƒ¼ãƒˆ
+    ' ƒoƒuƒ‹ƒ\[ƒg‚Å”NŒ‡‚Éƒ\[ƒg
     Dim j As Long
     For i = 1 To count - 1
         For j = 1 To count - i
@@ -200,9 +213,9 @@ Function SortFileCollection(files As Collection, file_system As Object, file_typ
             If GetYearMonthFromFile(file_array(j).Path, file_type, year1, month1) And _
                GetYearMonthFromFile(file_array(j + 1).Path, file_type, year2, month2) Then
                 
-                ' å¹´æœˆã‚’çµåˆã—ã¦æ¯”è¼ƒï¼ˆä¾‹ï¼š202402ï¼‰
+                ' ”NŒ‚ğŒ‹‡‚µ‚Ä”äŠri—áF202402j
                 If (CStr(year1) & Format(month1, "00")) > (CStr(year2) & Format(month2, "00")) Then
-                    ' é †åºãŒé€†ã®å ´åˆã€è¦ç´ ã‚’äº¤æ›
+                    ' ‡˜‚ª‹t‚Ìê‡A—v‘f‚ğŒğŠ·
                     Dim temp_obj As Object
                     Set temp_obj = file_array(j)
                     Set file_array(j) = file_array(j + 1)
@@ -212,7 +225,7 @@ Function SortFileCollection(files As Collection, file_system As Object, file_typ
         Next j
     Next i
     
-    ' ã‚½ãƒ¼ãƒˆã•ã‚ŒãŸé…åˆ—ã‚’æ–°ã—ã„Collectionã«è¿½åŠ 
+    ' ƒ\[ƒg‚³‚ê‚½”z—ñ‚ğV‚µ‚¢Collection‚É’Ç‰Á
     For i = 1 To count
         sorted_files.Add file_array(i)
     Next i
@@ -233,7 +246,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
     Debug.Print "Processing file: " & file_name
     
     Select Case file_type
-        Case "è«‹æ±‚ç¢ºå®šçŠ¶æ³"  ' fixfãƒ•ã‚¡ã‚¤ãƒ«
+        Case "¿‹Šm’èó‹µ"  ' fixfƒtƒ@ƒCƒ‹
             If Len(file_name) >= 25 Then
                 Dim billing_year As Integer, billing_month As Integer
                 billing_year = CInt(Mid(file_name, 18, 4))
@@ -241,7 +254,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                 
                 Debug.Print "Billing year/month from file: " & billing_year & "/" & billing_month
                 
-                ' èª¿å‰¤æœˆã‚’è«‹æ±‚æœˆã®1ãƒ¶æœˆå‰ã«è¨­å®š
+                ' ’²ÜŒ‚ğ¿‹Œ‚Ì1ƒ–Œ‘O‚Éİ’è
                 If billing_month = 1 Then
                     dispensing_year = billing_year - 1
                     dispensing_month = 12
@@ -254,7 +267,7 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                 GetYearMonthFromFile = True
             End If
             
-        Case "æŒ¯è¾¼é¡æ˜ç´°æ›¸", "è¿”æˆ»å†…è¨³æ›¸", "å¢—æ¸›ç‚¹é€£çµ¡æ›¸"  ' fmei, henr, zognãƒ•ã‚¡ã‚¤ãƒ«
+        Case "UŠz–¾×‘", "•Ô–ß“à–ó‘", "‘Œ¸“_˜A—‘"  ' fmei, henr, zognƒtƒ@ƒCƒ‹
             If Len(base_name) >= 5 Then
                 Dim code_part As String
                 code_part = Right(base_name, 5)
@@ -264,18 +277,18 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
                     era_year = CInt(Mid(code_part, 2, 2))
                     billing_month = CInt(Right(code_part, 2))
                     
-                    ' å…ƒå·ã‚³ãƒ¼ãƒ‰ã‹ã‚‰è¥¿æš¦å¹´ã‚’è¨ˆç®—
+                    ' Œ³†ƒR[ƒh‚©‚ç¼—ï”N‚ğŒvZ
                     Select Case era_code
-                        Case "5": billing_year = 2018 + era_year  ' ä»¤å’Œ
-                        Case "4": billing_year = 1988 + era_year  ' å¹³æˆ
-                        Case "3": billing_year = 1925 + era_year  ' æ˜­å’Œ
-                        Case "2": billing_year = 1911 + era_year  ' å¤§æ­£
-                        Case "1": billing_year = 1867 + era_year  ' æ˜æ²»
+                        Case "5": billing_year = 2018 + era_year  ' —ß˜a
+                        Case "4": billing_year = 1988 + era_year  ' •½¬
+                        Case "3": billing_year = 1925 + era_year  ' º˜a
+                        Case "2": billing_year = 1911 + era_year  ' ‘å³
+                        Case "1": billing_year = 1867 + era_year  ' –¾¡
                     End Select
                     
                     Debug.Print "Billing year/month from file: " & billing_year & "/" & billing_month
                     
-                    ' èª¿å‰¤æœˆã‚’è«‹æ±‚æœˆã®1ãƒ¶æœˆå‰ã«è¨­å®š
+                    ' ’²ÜŒ‚ğ¿‹Œ‚Ì1ƒ–Œ‘O‚Éİ’è
                     If billing_month = 1 Then
                         dispensing_year = billing_year - 1
                         dispensing_month = 12
@@ -294,8 +307,8 @@ Function GetYearMonthFromFile(file_path As String, file_type As String, ByRef di
 End Function
 
 Private Sub CreateBackup(file_path As String)
-    ' ãƒ•ã‚¡ã‚¤ãƒ«ã®ãƒãƒƒã‚¯ã‚¢ãƒƒãƒ—ã‚’ä½œæˆ
-    ' TODO: ãƒãƒƒã‚¯ã‚¢ãƒƒãƒ—æ©Ÿèƒ½ã®å®Ÿè£…
+    ' ƒtƒ@ƒCƒ‹‚ÌƒoƒbƒNƒAƒbƒv‚ğì¬
+    ' TODO: ƒoƒbƒNƒAƒbƒv‹@”\‚ÌÀ‘•
 End Sub
 
 Function GenerateReportFileName(ByVal billing_year As Integer, ByVal billing_month As Integer) As String
@@ -303,21 +316,21 @@ Function GenerateReportFileName(ByVal billing_year As Integer, ByVal billing_mon
     
     GenerateReportFileName = ""
     
-    ' å…¥åŠ›å€¤ã®æ¤œè¨¼
+    ' “ü—Í’l‚ÌŒŸØ
     If billing_year < 1900 Or billing_year > 9999 Then
-        MsgBox "è«‹æ±‚å¹´ãŒç„¡åŠ¹ã§ã™ã€‚" & vbCrLf & _
-               "å¹´: " & billing_year & vbCrLf & _
-               "ç™ºç”Ÿç®‡æ‰€: GenerateReportFileName", _
-               vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+        MsgBox "¿‹”N‚ª–³Œø‚Å‚·B" & vbCrLf & _
+               "”N: " & billing_year & vbCrLf & _
+               "”­¶‰ÓŠ: GenerateReportFileName", _
+               vbExclamation, "ƒGƒ‰["
         GenerateReportFileName = ""
         Exit Function
     End If
     
     If billing_month < 1 Or billing_month > 12 Then
-        MsgBox "è«‹æ±‚æœˆãŒç„¡åŠ¹ã§ã™ã€‚" & vbCrLf & _
-               "æœˆ: " & billing_month & vbCrLf & _
-               "ç™ºç”Ÿç®‡æ‰€: GenerateReportFileName", _
-               vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+        MsgBox "¿‹Œ‚ª–³Œø‚Å‚·B" & vbCrLf & _
+               "Œ: " & billing_month & vbCrLf & _
+               "”­¶‰ÓŠ: GenerateReportFileName", _
+               vbExclamation, "ƒGƒ‰["
         GenerateReportFileName = ""
         Exit Function
     End If
@@ -326,23 +339,34 @@ Function GenerateReportFileName(ByVal billing_year As Integer, ByVal billing_mon
     Debug.Print "Billing year: " & billing_year
     Debug.Print "Billing month: " & billing_month
     
-    ' å…ƒå·æƒ…å ±ã‚’å–å¾—
+    Dim dispensing_year As Integer, dispensing_month As Integer
+    
+    If billing_month < 2 Then
+        dispensing_year = billing_year - 1
+        dispensing_month = 12
+    Else
+        dispensing_year = billing_year
+        dispensing_month = billing_month - 1
+    End If
+    
+    ' Œ³†î•ñ‚ğæ“¾
     Dim era_info As Object
-    Set era_info = ConvertEraYear(billing_year, True)
+    Set era_info = DateConversionModule.ConvertEraYear(dispensing_year, True)
     
     If era_info Is Nothing Then
-        MsgBox "å…ƒå·ã®å¤‰æ›ã«å¤±æ•—ã—ã¾ã—ãŸã€‚" & vbCrLf & _
-               "å¹´: " & billing_year, _
-               vbExclamation, "GenerateReportFileName - ã‚¨ãƒ©ãƒ¼"
+        MsgBox "Œ³†‚Ì•ÏŠ·‚É¸”s‚µ‚Ü‚µ‚½B" & vbCrLf & _
+               "”N: " & billing_year, _
+               vbExclamation, "GenerateReportFileName - ƒGƒ‰["
         GenerateReportFileName = ""
         Exit Function
     End If
     
-    ' ãƒ•ã‚¡ã‚¤ãƒ«åã‚’ç”Ÿæˆ
-    GenerateReportFileName = "ä¿é™ºè«‹æ±‚ç®¡ç†å ±å‘Šæ›¸_" & _
+    
+    ' ƒtƒ@ƒCƒ‹–¼‚ğ¶¬
+    GenerateReportFileName = "•ÛŒ¯¿‹ŠÇ—•ñ‘_" & _
                             era_info("era") & _
-                            Format(era_info("year"), "00") & "å¹´" & _
-                            Format(billing_month, "00") & "æœˆ.xlsm"
+                            Format(era_info("year"), "00") & "”N" & _
+                            Format(dispensing_month, "00") & "Œ.xlsm"
                             
     Debug.Print "Generated filename: " & GenerateReportFileName
     Exit Function
@@ -354,9 +378,9 @@ ErrorHandler:
     Debug.Print "Error description: " & Err.Description
     Debug.Print "=================================="
     
-    error_response = MsgBox("ãƒ•ã‚¡ã‚¤ãƒ«åã®ç”Ÿæˆä¸­ã«ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¤‰æ›´ã‚’ä¿å­˜ã—ã¾ã™ã‹ï¼Ÿ" & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼ç•ªå·: " & Err.Number & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼å†…å®¹: " & Err.Description, _
+    error_response = MsgBox("ƒtƒ@ƒCƒ‹–¼‚Ì¶¬’†‚ÉƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½B•ÏX‚ğ•Û‘¶‚µ‚Ü‚·‚©H" & vbCrLf & _
+                           "ƒGƒ‰[”Ô†: " & Err.Number & vbCrLf & _
+                           "ƒGƒ‰[“à—e: " & Err.Description, _
                            vbYesNo + vbExclamation)
     
     If error_response = vbYes Then
@@ -377,24 +401,34 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
     
     For Each file_obj In csv_files
         Dim save_successful As Boolean
-        save_successful = False  ' ä¿å­˜ãƒ•ãƒ©ã‚°ã‚’åˆæœŸåŒ–
+        save_successful = False  ' •Û‘¶ƒtƒ‰ƒO‚ğ‰Šú‰»
         
         Debug.Print "----------------------------------------"
         Debug.Print "Processing file: " & file_obj.Name
         Debug.Print "File type: " & file_type_name
         Debug.Print "File path: " & file_obj.Path
         
-        ' CSVãƒ•ã‚¡ã‚¤ãƒ«åã‹ã‚‰èª¿å‰¤å¹´æœˆã‚’å–å¾—
+        ' CSVƒtƒ@ƒCƒ‹–¼‚©‚ç’²Ü”NŒ‚ğæ“¾
         If Not GetYearMonthFromFile(file_obj.Path, file_type_name, dispensing_year, dispensing_month) Then
             Debug.Print "ERROR: Failed to get year/month from file"
-            MsgBox "ãƒ•ã‚¡ã‚¤ãƒ« " & file_obj.Name & " ã‹ã‚‰èª¿å‰¤å¹´æœˆã‚’å–å¾—ã§ãã¾ã›ã‚“ã§ã—ãŸã€‚", vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+            MsgBox "ƒtƒ@ƒCƒ‹ " & file_obj.Name & " ‚©‚ç’²Ü”NŒ‚ğæ“¾‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½B", vbExclamation, "ƒGƒ‰["
             GoTo NextFile
         End If
 
         Debug.Print "Dispensing year/month: " & dispensing_year & "/" & dispensing_month
         
-        ' å ±å‘Šæ›¸ãƒ•ã‚¡ã‚¤ãƒ«åã‚’ç”Ÿæˆ
-        report_file_name = GenerateReportFileName(dispensing_year, dispensing_month)
+        Dim billing_year As Integer, billing_month As Integer
+        
+        If dispensing_month = 12 Then
+            billing_year = dispensing_year + 1
+            billing_month = 1
+        Else
+            billing_year = dispensing_year
+            billing_month = dispensing_month + 1
+        End If
+        
+        ' •ñ‘ƒtƒ@ƒCƒ‹–¼‚ğ¶¬
+        report_file_name = GenerateReportFileName(billing_year, billing_month)
         Debug.Print "Generated report file name: " & report_file_name
         
         If report_file_name = "" Then
@@ -405,13 +439,13 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         report_file_path = save_path & "\" & report_file_name
         Debug.Print "Full report file path: " & report_file_path
         
-        ' ãƒ•ã‚¡ã‚¤ãƒ«ã®å­˜åœ¨ç¢ºèª
+        ' ƒtƒ@ƒCƒ‹‚Ì‘¶İŠm”F
         If Not file_system.FileExists(report_file_path) Then
             Debug.Print "ERROR: Report file does not exist: " & report_file_path
             GoTo NextFile
         End If
         
-        ' ãƒ¯ãƒ¼ã‚¯ãƒ–ãƒƒã‚¯ã‚’é–‹ã
+        ' ƒ[ƒNƒuƒbƒN‚ğŠJ‚­
         On Error Resume Next
         Set report_wb = Workbooks.Open(report_file_path, ReadOnly:=False, UpdateLinks:=False)
         If Err.Number <> 0 Then
@@ -430,12 +464,12 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         
         Debug.Print "Successfully opened workbook"
         
-        ' CSVãƒ‡ãƒ¼ã‚¿ã‚’ã‚¤ãƒ³ãƒãƒ¼ãƒˆã—ã¦æ–°è¦ã‚·ãƒ¼ãƒˆã«è»¢è¨˜
+        ' CSVƒf[ƒ^‚ğƒCƒ“ƒ|[ƒg‚µ‚ÄV‹KƒV[ƒg‚É“]‹L
         base_name = file_system.GetBaseName(file_obj.Name)
         sheet_name = base_name
         Debug.Print "Base sheet name: " & sheet_name
         
-        ' ã‚·ãƒ¼ãƒˆåã®é‡è¤‡ãƒã‚§ãƒƒã‚¯ã¨ä¸€æ„ã®åå‰ç”Ÿæˆ
+        ' ƒV[ƒg–¼‚Ìd•¡ƒ`ƒFƒbƒN‚ÆˆêˆÓ‚Ì–¼‘O¶¬
         Dim sheet_index As Integer
         sheet_index = 1
         
@@ -455,8 +489,8 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         
         Debug.Print "Final sheet name: " & sheet_name
         
-        ' æ–°è¦ã‚·ãƒ¼ãƒˆã®è¿½åŠ 
-        insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.Count)
+        ' V‹KƒV[ƒg‚Ì’Ç‰Á
+        insert_index = Application.WorksheetFunction.Min(3, report_wb.Sheets.count)
         Debug.Print "Insert index: " & insert_index
         
         On Error Resume Next
@@ -478,15 +512,15 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
         ws_csv.Name = sheet_name
         Debug.Print "Successfully created and named new sheet"
         
-        ' ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã™ã‚‹å¯èƒ½æ€§ã®ã‚ã‚‹å‡¦ç†ã®å‰ã« On Error Resume Next
+        ' ƒGƒ‰[‚ª”­¶‚·‚é‰Â”\«‚Ì‚ ‚éˆ—‚Ì‘O‚É On Error Resume Next
         On Error Resume Next
         
-        ' å‡¦ç†ãŒæˆåŠŸã—ãŸã‹ã©ã†ã‹ã‚’ç¢ºèª
+        ' ˆ—‚ª¬Œ÷‚µ‚½‚©‚Ç‚¤‚©‚ğŠm”F
         Dim process_error As Boolean
         process_error = False
         
-        ' CSVãƒ‡ãƒ¼ã‚¿ã®ã‚¤ãƒ³ãƒãƒ¼ãƒˆ
-        If file_type_name = "è«‹æ±‚ç¢ºå®šçŠ¶æ³" Then
+        ' CSVƒf[ƒ^‚ÌƒCƒ“ƒ|[ƒg
+        If file_type_name = "¿‹Šm’èó‹µ" Then
             ImportCsvData file_obj.Path, ws_csv, file_type_name, True
         Else
             ImportCsvData file_obj.Path, ws_csv, file_type_name, False
@@ -497,14 +531,14 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
             process_error = True
         End If
         
-        ' ã‚¨ãƒ©ãƒ¼ã‚’ãƒªã‚»ãƒƒãƒˆ
+        ' ƒGƒ‰[‚ğƒŠƒZƒbƒg
         Err.Clear
         
-        ' è©³ç´°ãƒ‡ãƒ¼ã‚¿ã‚’è©³ç´°ã‚·ãƒ¼ãƒˆã«åæ˜ 
+        ' Ú×ƒf[ƒ^‚ğÚ×ƒV[ƒg‚É”½‰f
         If Not process_error Then
             Call TransferBillingDetails(report_wb, file_obj.Name, CStr(dispensing_year), _
                                       Format(dispensing_month, "00"), _
-                                      (file_type_name = "è«‹æ±‚ç¢ºå®šçŠ¶æ³"))
+                                      (file_type_name = "¿‹Šm’èó‹µ"))
             
             If Err.Number <> 0 Then
                 Debug.Print "ERROR in TransferBillingDetails: " & Err.Description
@@ -512,10 +546,10 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
             End If
         End If
         
-        ' ã‚¨ãƒ©ãƒ¼å‡¦ç†ã‚’å…ƒã«æˆ»ã™
+        ' ƒGƒ‰[ˆ—‚ğŒ³‚É–ß‚·
         On Error GoTo ErrorHandler
         
-        ' å‡¦ç†ãŒæˆåŠŸã—ãŸå ´åˆã®ã¿ä¿å­˜
+        ' ˆ—‚ª¬Œ÷‚µ‚½ê‡‚Ì‚İ•Û‘¶
         If Not process_error Then
             Debug.Print "Processing completed successfully, saving workbook"
             report_wb.Save
@@ -527,9 +561,9 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
 NextFile:
         If Not report_wb Is Nothing Then
             Debug.Print "Cleaning up: Closing workbook"
-            ' ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ãŸãŒã€é‡è¦ãªå¤‰æ›´ãŒã‚ã‚‹å ´åˆã¯ä¿å­˜ã™ã‚‹ã‹ã©ã†ã‹ã‚’ãƒ¦ãƒ¼ã‚¶ãƒ¼ã«ç¢ºèª
-            error_response = MsgBox("ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¤‰æ›´ã‚’ä¿å­˜ã—ã¾ã™ã‹ï¼Ÿ" & vbCrLf & _
-                                  "ã‚¨ãƒ©ãƒ¼å†…å®¹: " & Err.Description, _
+            ' ƒGƒ‰[‚ª”­¶‚µ‚½‚ªAd—v‚È•ÏX‚ª‚ ‚éê‡‚Í•Û‘¶‚·‚é‚©‚Ç‚¤‚©‚ğƒ†[ƒU[‚ÉŠm”F
+            error_response = MsgBox("ƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½B•ÏX‚ğ•Û‘¶‚µ‚Ü‚·‚©H" & vbCrLf & _
+                                  "ƒGƒ‰[“à—e: " & Err.Description, _
                                   vbYesNo + vbExclamation)
             report_wb.Close SaveChanges:=(error_response = vbYes)
             Set report_wb = Nothing
@@ -554,10 +588,10 @@ ErrorHandler:
     Debug.Print "File type: " & file_type_name
     Debug.Print "=================================="
     
-    error_response = MsgBox("å‡¦ç†ä¸­ã«ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¤‰æ›´ã‚’ä¿å­˜ã—ã¾ã™ã‹ï¼Ÿ" & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼ç•ªå·: " & Err.Number & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼å†…å®¹: " & Err.Description & vbCrLf & _
-                           "ãƒ•ã‚¡ã‚¤ãƒ«: " & IIf(Not file_obj Is Nothing, file_obj.Name, "ä¸æ˜"), _
+    error_response = MsgBox("ˆ—’†‚ÉƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½B•ÏX‚ğ•Û‘¶‚µ‚Ü‚·‚©H" & vbCrLf & _
+                           "ƒGƒ‰[”Ô†: " & Err.Number & vbCrLf & _
+                           "ƒGƒ‰[“à—e: " & Err.Description & vbCrLf & _
+                           "ƒtƒ@ƒCƒ‹: " & IIf(Not file_obj Is Nothing, file_obj.Name, "•s–¾"), _
                            vbYesNo + vbExclamation)
     
     If error_response = vbYes Then
@@ -573,12 +607,12 @@ End Function
 Private Function SetTemplateInfo(ByVal wb As Workbook, ByVal billing_year As Integer, ByVal billing_month As Integer) As Boolean
     On Error GoTo ErrorHandler
     
-    ' ãƒ¡ã‚¤ãƒ³ã‚·ãƒ¼ãƒˆï¼ˆ1æšç›®ï¼‰ã¨è©³ç´°ã‚·ãƒ¼ãƒˆï¼ˆ2æšç›®ï¼‰ã‚’å–å¾—
+    ' ƒƒCƒ“ƒV[ƒgi1–‡–Új‚ÆÚ×ƒV[ƒgi2–‡–Új‚ğæ“¾
     Dim ws_main As Worksheet, ws_sub As Worksheet
     Set ws_main = wb.Sheets(1)
     Set ws_sub = wb.Sheets(2)
     
-    ' èª¿å‰¤å¹´æœˆã‚’è¨ˆç®—ï¼ˆè«‹æ±‚æœˆã®1ãƒ¶æœˆå‰ãŒèª¿å‰¤æœˆï¼‰
+    ' ’²Ü”NŒ‚ğŒvZi¿‹Œ‚Ì1ƒ–Œ‘O‚ª’²ÜŒj
     Dim dispensing_year As Integer, dispensing_month As Integer
     If billing_month = 1 Then
         dispensing_year = billing_year - 1
@@ -588,50 +622,50 @@ Private Function SetTemplateInfo(ByVal wb As Workbook, ByVal billing_year As Int
         dispensing_month = billing_month - 1
     End If
     
-    ' è«‹æ±‚æ—¥ã®è¨­å®š
+    ' ¿‹“ú‚Ìİ’è
     Dim send_date As String
-    send_date = billing_month & "æœˆ10æ—¥è«‹æ±‚åˆ†"
+    send_date = billing_month & "Œ10“ú¿‹•ª"
     
-    ' åº—èˆ—åã®å–å¾—
+    ' “X•Ü–¼‚Ìæ“¾
     Dim store_name As String
     On Error Resume Next
-    ' ThisWorkbookã«è¨­å®šã‚·ãƒ¼ãƒˆãŒã‚ã‚‹ã‹ç¢ºèª
+    ' ThisWorkbook‚Éİ’èƒV[ƒg‚ª‚ ‚é‚©Šm”F
     Dim ws_settings As Worksheet
-    Set ws_settings = ThisWorkbook.Worksheets("è¨­å®š")
+    Set ws_settings = ThisWorkbook.Worksheets("İ’è")
     If Not ws_settings Is Nothing Then
-        store_name = ws_settings.Range("B1").Value
+        store_name = ws_settings.Range("B1").value
     Else
-        ' è¨­å®šã‚·ãƒ¼ãƒˆãŒãªã„å ´åˆã¯ãƒ¡ã‚¤ãƒ³ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ã‹ã‚‰ãƒ‘ã‚¹ã‚’å–å¾—
+        ' İ’èƒV[ƒg‚ª‚È‚¢ê‡‚ÍƒƒCƒ“ƒ‚ƒWƒ…[ƒ‹‚©‚çƒpƒX‚ğæ“¾
         store_name = ""
     End If
     On Error GoTo ErrorHandler
     
-    ' ä»¤å’Œå¹´ã‚’è¨ˆç®—
+    ' —ß˜a”N‚ğŒvZ
     Dim era_info As Object
     Set era_info = DateConversionModule.ConvertEraYear(dispensing_year, True)
     
-    ' ã‚·ãƒ¼ãƒˆåã‚’è¨­å®š
+    ' ƒV[ƒg–¼‚ğİ’è
     Dim era_year As String
     era_year = CStr(era_info("year"))
     
-    ' ã‚·ãƒ¼ãƒˆåã‚’å¤‰æ›´
+    ' ƒV[ƒg–¼‚ğ•ÏX
     On Error Resume Next
     ws_main.Name = "R" & era_year & "." & dispensing_month
     ws_sub.Name = UtilityModule.ConvertToCircledNumber(dispensing_month)
     On Error GoTo ErrorHandler
     
-    ' ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆã®å¹´æœˆã‚’è¨­å®š
+    ' ƒeƒ“ƒvƒŒ[ƒg‚Ì”NŒ‚ğİ’è
     With ws_main
-        ' å¹´æœˆã®è¨­å®š
-        .Range("G2").Value = dispensing_year & "å¹´" & dispensing_month & "æœˆèª¿å‰¤åˆ†"
-        .Range("I2").Value = send_date
-        .Range("J2").Value = store_name
+        ' ”NŒ‚Ìİ’è
+        .Range("G2").value = dispensing_year & "”N" & dispensing_month & "Œ’²Ü•ª"
+        .Range("I2").value = send_date
+        .Range("J2").value = store_name
     End With
     
     With ws_sub
-        .Range("H1").Value = dispensing_year & "å¹´" & dispensing_month & "æœˆèª¿å‰¤åˆ†"
-        .Range("J1").Value = send_date
-        .Range("L1").Value = store_name
+        .Range("H1").value = dispensing_year & "”N" & dispensing_month & "Œ’²Ü•ª"
+        .Range("J1").value = send_date
+        .Range("L1").value = store_name
     End With
     
     SetTemplateInfo = True
@@ -646,12 +680,15 @@ ErrorHandler:
     Debug.Print "Billing month: " & billing_month
     Debug.Print "Dispensing year: " & dispensing_year
     Debug.Print "Dispensing month: " & dispensing_month
+    Debug.Print "ws_main.Name" & ws_main.Name
+    Debug.Print "ws_sub.Name" & ws_sub.Name
     Debug.Print "=================================="
     
-    error_response = MsgBox("ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆæƒ…å ±ã®è¨­å®šä¸­ã«ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚å¤‰æ›´ã‚’ä¿å­˜ã—ã¾ã™ã‹ï¼Ÿ" & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼ç•ªå·: " & Err.Number & vbCrLf & _
-                           "ã‚¨ãƒ©ãƒ¼å†…å®¹: " & Err.Description, _
+    error_response = MsgBox("ƒeƒ“ƒvƒŒ[ƒgî•ñ‚Ìİ’è’†‚ÉƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½B•ÏX‚ğ•Û‘¶‚µ‚Ü‚·‚©H" & vbCrLf & _
+                           "ƒGƒ‰[”Ô†: " & Err.Number & vbCrLf & _
+                           "ƒGƒ‰[“à—e: " & Err.Description, _
                            vbYesNo + vbExclamation)
     
     SetTemplateInfo = (error_response = vbYes)
-End Function 
+End Function
+

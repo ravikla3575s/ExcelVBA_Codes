@@ -1,52 +1,53 @@
+Attribute VB_Name = "MainModule"
 Option Explicit
 
-' å®šæ•°å®šç¾©
+' ’è”’è‹`
 Public Const MAX_LINES_PER_SHEET As Long = 40
 Public Const REQUIRED_SHEETS_COUNT As Integer = 6
 Public Const BASE_DETAIL_ROWS As Integer = 4
 
-' ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆãƒ»ä¿å­˜å…ˆãƒ‘ã‚¹
+' ƒeƒ“ƒvƒŒ[ƒgE•Û‘¶æƒpƒX
 Public template_path As String
 Public save_path As String
 
 Sub CreateReportsFromCSV()
     On Error GoTo ErrorHandler
     
-    ' ãƒ‘ã‚¹ã®è¨­å®š
-    template_path = ThisWorkbook.Sheets(1).Range("B2").Value & "\ä¿é™ºè«‹æ±‚ç®¡ç†å ±å‘Šæ›¸ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆ20250222.xltm"
-    save_path = ThisWorkbook.Sheets(1).Range("B3").Value
+    ' ƒpƒX‚Ìİ’è
+    template_path = ThisWorkbook.Sheets(1).Range("B2").value & "\•ÛŒ¯¿‹ŠÇ—•ñ‘ƒeƒ“ƒvƒŒ[ƒg20250320.xltm"
+    save_path = ThisWorkbook.Sheets(1).Range("B3").value
     
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     
-    Dim csv_folder As String            ' CSVãƒ•ã‚©ãƒ«ãƒ€ãƒ‘ã‚¹
+    Dim csv_folder As String            ' CSVƒtƒHƒ‹ƒ_ƒpƒX
     Dim file_system As Object          ' FileSystemObject
-    Dim billing_year As String, billing_month As String  ' å‡¦ç†å¯¾è±¡ã®è¨ºç™‚å¹´ãƒ»æœˆï¼ˆè¥¿æš¦ï¼‰
+    Dim billing_year As String, billing_month As String  ' ˆ—‘ÎÛ‚Ìf—Ã”NEŒi¼—ïj
     Dim fixf_files As New Collection, fmei_files As New Collection
     Dim henr_files As New Collection, zogn_files As New Collection
     Dim file_obj As Object
 
-    ' 1. CSVãƒ•ã‚©ãƒ«ãƒ€ã‚’ãƒ¦ãƒ¼ã‚¶ãƒ¼ã«é¸æŠã•ã›ã‚‹
+    ' 1. CSVƒtƒHƒ‹ƒ_‚ğƒ†[ƒU[‚É‘I‘ğ‚³‚¹‚é
     csv_folder = SelectCsvFolder()
-    If csv_folder = "" Then Exit Sub  ' ãƒ¦ãƒ¼ã‚¶ãƒ¼ãŒã‚­ãƒ£ãƒ³ã‚»ãƒ«ã—ãŸå ´åˆ
+    If csv_folder = "" Then Exit Sub  ' ƒ†[ƒU[‚ªƒLƒƒƒ“ƒZƒ‹‚µ‚½ê‡
 
-    ' 2. ãƒ•ã‚©ãƒ«ãƒ€ãŒç©ºãªã‚‰å‡¦ç†ã‚’ä¸­æ­¢
+    ' 2. ƒtƒHƒ‹ƒ_‚ª‹ó‚È‚çˆ—‚ğ’†~
     If IsFolderEmpty(csv_folder) Then
-        MsgBox "é¸æŠã—ãŸãƒ•ã‚©ãƒ«ãƒ€ã«ã¯CSVãƒ•ã‚¡ã‚¤ãƒ«ãŒã‚ã‚Šã¾ã›ã‚“ã€‚å‡¦ç†ã‚’ä¸­æ­¢ã—ã¾ã™ã€‚", vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+        MsgBox "‘I‘ğ‚µ‚½ƒtƒHƒ‹ƒ_‚É‚ÍCSVƒtƒ@ƒCƒ‹‚ª‚ ‚è‚Ü‚¹‚ñBˆ—‚ğ’†~‚µ‚Ü‚·B", vbExclamation, "ƒGƒ‰["
         Exit Sub
     End If
 
-    ' 3. ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆãƒ‘ã‚¹ãƒ»ä¿å­˜å…ˆãƒ•ã‚©ãƒ«ãƒ€ã®å­˜åœ¨ç¢ºèª
+    ' 3. ƒeƒ“ƒvƒŒ[ƒgƒpƒXE•Û‘¶æƒtƒHƒ‹ƒ_‚Ì‘¶İŠm”F
     If template_path = "" Or save_path = "" Then
-        MsgBox "ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆãƒ‘ã‚¹ã¾ãŸã¯ä¿å­˜å…ˆãƒ•ã‚©ãƒ«ãƒ€ãŒè¨­å®šã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚", vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+        MsgBox "ƒeƒ“ƒvƒŒ[ƒgƒpƒX‚Ü‚½‚Í•Û‘¶æƒtƒHƒ‹ƒ_‚ªİ’è‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB", vbExclamation, "ƒGƒ‰["
         Exit Sub
     End If
 
-    ' 4. FileSystemObjectã®ç”¨æ„
+    ' 4. FileSystemObject‚Ì—pˆÓ
     Set file_system = CreateObject("Scripting.FileSystemObject")
 
-    ' 4. ãƒ•ã‚©ãƒ«ãƒ€å†…ã®å…¨CSVãƒ•ã‚¡ã‚¤ãƒ«ã‚’ç¨®é¡åˆ¥ã«åé›†ï¼ˆfixf, fmei, henr, zognï¼‰
-    For Each file_obj In file_system.GetFolder(csv_folder).Files
+    ' 4. ƒtƒHƒ‹ƒ_“à‚Ì‘SCSVƒtƒ@ƒCƒ‹‚ğí—Ş•Ê‚ÉûWifixf, fmei, henr, zognj
+    For Each file_obj In file_system.GetFolder(csv_folder).files
         If LCase(file_system.GetExtensionName(file_obj.Name)) = "csv" Then
             If InStr(LCase(file_obj.Name), "fixf") > 0 Then
                 fixf_files.Add file_obj
@@ -64,30 +65,30 @@ Sub CreateReportsFromCSV()
         End If
     Next file_obj
 
-    ' 6. å¯¾è±¡CSVãƒ•ã‚¡ã‚¤ãƒ«ãŒä¸€ã¤ã‚‚ãªã„å ´åˆã€å‡¦ç†ã‚’ä¸­æ­¢
-    If fixf_files.Count = 0 And fmei_files.Count = 0 And henr_files.Count = 0 And zogn_files.Count = 0 Then
-        MsgBox "é¸æŠã—ãŸãƒ•ã‚©ãƒ«ãƒ€ã«ã¯å‡¦ç†å¯¾è±¡ã®CSVãƒ•ã‚¡ã‚¤ãƒ«ãŒã‚ã‚Šã¾ã›ã‚“ã€‚å‡¦ç†ã‚’ä¸­æ­¢ã—ã¾ã™ã€‚", vbExclamation, "ã‚¨ãƒ©ãƒ¼"
+    ' 6. ‘ÎÛCSVƒtƒ@ƒCƒ‹‚ªˆê‚Â‚à‚È‚¢ê‡Aˆ—‚ğ’†~
+    If fixf_files.count = 0 And fmei_files.count = 0 And henr_files.count = 0 And zogn_files.count = 0 Then
+        MsgBox "‘I‘ğ‚µ‚½ƒtƒHƒ‹ƒ_‚É‚Íˆ—‘ÎÛ‚ÌCSVƒtƒ@ƒCƒ‹‚ª‚ ‚è‚Ü‚¹‚ñBˆ—‚ğ’†~‚µ‚Ü‚·B", vbExclamation, "ƒGƒ‰["
         Exit Sub
     End If
 
-    ' 7. fixfãƒ•ã‚¡ã‚¤ãƒ«ã¨fmeiãƒ•ã‚¡ã‚¤ãƒ«ã®æœ‰ç„¡ã«ã‚ˆã‚‹å‡¦ç†åˆ†å²
-    If fixf_files.Count > 0 Then
+    ' 7. fixfƒtƒ@ƒCƒ‹‚Æfmeiƒtƒ@ƒCƒ‹‚Ì—L–³‚É‚æ‚éˆ—•ªŠò
+    If fixf_files.count > 0 Then
         CreateReportFiles file_system, fixf_files, save_path, template_path
     End If
-    If fmei_files.Count > 0 Then
+    If fmei_files.count > 0 Then
         CreateReportFiles file_system, fmei_files, save_path, template_path
     End If
 
-    ' 8. å„ç¨®æ˜ç´°CSVï¼ˆfmei, henr, zognï¼‰ã®å‡¦ç†
-    FileModule.ProcessCsvFilesByType file_system, fixf_files, "è«‹æ±‚ç¢ºå®šçŠ¶æ³"
-    FileModule.ProcessCsvFilesByType file_system, fmei_files, "æŒ¯è¾¼é¡æ˜ç´°æ›¸"
-    FileModule.ProcessCsvFilesByType file_system, henr_files, "è¿”æˆ»å†…è¨³æ›¸" 
-    FileModule.ProcessCsvFilesByType file_system, zogn_files, "å¢—æ¸›ç‚¹é€£çµ¡æ›¸"
+    ' 8. Šeí–¾×CSVifmei, henr, zognj‚Ìˆ—
+    FileModule.ProcessCsvFilesByType file_system, fixf_files, "¿‹Šm’èó‹µ"
+    FileModule.ProcessCsvFilesByType file_system, fmei_files, "UŠz–¾×‘"
+    FileModule.ProcessCsvFilesByType file_system, henr_files, "•Ô–ß“à–ó‘"
+    FileModule.ProcessCsvFilesByType file_system, zogn_files, "‘Œ¸“_˜A—‘"
     
-    ' 9. å®Œäº†ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸
-    MsgBox "CSVãƒ•ã‚¡ã‚¤ãƒ«ã®å‡¦ç†ãŒå®Œäº†ã—ã¾ã—ãŸï¼", vbInformation, "å®Œäº†"
+    ' 9. Š®—¹ƒƒbƒZ[ƒW
+    MsgBox "CSVƒtƒ@ƒCƒ‹‚Ìˆ—‚ªŠ®—¹‚µ‚Ü‚µ‚½I", vbInformation, "Š®—¹"
 
-    ' ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®è§£æ”¾å‡¦ç†ã‚’è¿½åŠ 
+    ' ƒIƒuƒWƒFƒNƒg‚Ì‰ğ•úˆ—‚ğ’Ç‰Á
     Set file_system = Nothing
     
     Application.ScreenUpdating = True
@@ -101,16 +102,16 @@ ErrorHandler:
     Debug.Print "Error description: " & Err.Description
     Debug.Print "=================================="
     
-    MsgBox "å‡¦ç†ä¸­ã«ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸã€‚" & vbCrLf & _
-           "ã‚¨ãƒ©ãƒ¼ç•ªå·: " & Err.Number & vbCrLf & _
-           "ã‚¨ãƒ©ãƒ¼å†…å®¹: " & Err.Description, _
-           vbCritical, "ã‚¨ãƒ©ãƒ¼"
+    MsgBox "ˆ—’†‚ÉƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½B" & vbCrLf & _
+           "ƒGƒ‰[”Ô†: " & Err.Number & vbCrLf & _
+           "ƒGƒ‰[“à—e: " & Err.Description, _
+           vbCritical, "ƒGƒ‰["
            
     Application.ScreenUpdating = True
     Application.Calculation = xlCalculationAutomatic
 End Sub
 
-' èª¿å‰¤å¹´æœˆã‚’å–å¾—ã™ã‚‹é–¢æ•°ï¼ˆå¹´ã¨æœˆã‚’åˆ¥ã€…ã«å–å¾—ï¼‰
+' ’²Ü”NŒ‚ğæ“¾‚·‚éŠÖ”i”N‚ÆŒ‚ğ•ÊX‚Éæ“¾j
 Private Sub GetDispensingYearMonth(file_path As String, ByRef year_out As String, ByRef month_out As String)
     Dim file_name As String
     Dim billing_year As Integer, billing_month As Integer
@@ -119,12 +120,12 @@ Private Sub GetDispensingYearMonth(file_path As String, ByRef year_out As String
     year_out = ""
     month_out = ""
     
-    ' FIXFãƒ•ã‚¡ã‚¤ãƒ«ã‹ã‚‰è«‹æ±‚å¹´æœˆã‚’æŠ½å‡º
+    ' FIXFƒtƒ@ƒCƒ‹‚©‚ç¿‹”NŒ‚ğ’Šo
     If Len(file_name) >= 23 Then
         billing_year = CInt(Mid(file_name, 18, 4))
         billing_month = CInt(Mid(file_name, 22, 2))
         
-        ' è«‹æ±‚æœˆã‹ã‚‰èª¿å‰¤å¹´æœˆã‚’è¨ˆç®—ï¼ˆ1æœˆå‰ï¼‰
+        ' ¿‹Œ‚©‚ç’²Ü”NŒ‚ğŒvZi1Œ‘Oj
         If billing_month = 1 Then
             year_out = CStr(billing_year - 1)
             month_out = "12"
@@ -133,4 +134,5 @@ Private Sub GetDispensingYearMonth(file_path As String, ByRef year_out As String
             month_out = Format(billing_month - 1, "00")
         End If
     End If
-End Sub 
+End Sub
+
