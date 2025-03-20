@@ -1,5 +1,8 @@
 Option Explicit
 
+' ファイルの先頭でグローバル変数として定義
+Private error_response As VbMsgBoxResult
+
 Function SelectCsvFolder() As String
     With Application.FileDialog(msoFileDialogFolderPicker)
         .Title = "CSVフォルダを選択してください"
@@ -151,7 +154,7 @@ ErrorHandler:
     Debug.Print "Report file name: " & report_file_name
     Debug.Print "=================================="
     
-    ' error_responseは既に宣言済みのため削除
+    ' error_responseの宣言を削除し、直接使用
     error_response = MsgBox("ファイル作成中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description & vbCrLf & _
@@ -352,7 +355,7 @@ ErrorHandler:
     Debug.Print "Error description: " & Err.Description
     Debug.Print "=================================="
     
-    Dim error_response As VbMsgBoxResult
+    ' error_responseの宣言を削除し、直接使用
     error_response = MsgBox("ファイル名の生成中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description, _
@@ -526,8 +529,7 @@ Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, f
 NextFile:
         If Not report_wb Is Nothing Then
             Debug.Print "Cleaning up: Closing workbook"
-            ' エラーが発生したが、重要な変更がある場合は保存するかどうかをユーザーに確認
-            Dim error_response As VbMsgBoxResult
+            ' error_responseの宣言を削除し、直接使用
             error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
                                   "エラー内容: " & Err.Description, _
                                   vbYesNo + vbExclamation)
@@ -554,7 +556,7 @@ ErrorHandler:
     Debug.Print "File type: " & file_type_name
     Debug.Print "=================================="
     
-    ' error_responseは既に宣言済みのため削除
+    ' error_responseの宣言を削除し、直接使用
     error_response = MsgBox("処理中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description & vbCrLf & _
@@ -603,7 +605,7 @@ ErrorHandler:
     Debug.Print "Billing month: " & billing_month
     Debug.Print "=================================="
     
-    Dim error_response As VbMsgBoxResult
+    ' error_responseの宣言を削除し、直接使用
     error_response = MsgBox("テンプレート情報の設定中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description, _
