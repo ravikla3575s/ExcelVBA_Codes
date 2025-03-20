@@ -694,65 +694,85 @@ Private Function SetTemplateInfo(ByVal wb As Workbook, ByVal billing_year As Int
         .Range("D2:M2").Interior.Color = RGB(220, 230, 241)  ' 薄い青
         .Range("D2:M2").Borders.LineStyle = xlContinuous
         
-        ' 社保セクション - マーキングを含む
-        .Range("A3").Value = "<<社保再請求>> 社保返戻再請求"
+        ' 社保セクション - マーキング付き
+        .Range("D3").Value = "<<社保再請求>>"
+        .Range("A3").Value = "社保返戻再請求"
         .Range("A3").Font.Bold = True
         .Range("A3").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A8").Value = "<<社保月遅れ>> 社保月遅れ請求"
+        .Range("D8").Value = "<<社保月遅れ>>"
+        .Range("A8").Value = "社保月遅れ請求"
         .Range("A8").Font.Bold = True
         .Range("A8").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A13").Value = "<<社保月送り>> 社保月送り"
+        .Range("D13").Value = "<<社保返戻>>"
+        .Range("A13").Value = "社保返戻・査定"
         .Range("A13").Font.Bold = True
         .Range("A13").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A18").Value = "<<社保返戻>> 社保返戻・査定"
+        .Range("D18").Value = "<<社保未請求扱い>>"
+        .Range("A18").Value = "社保未請求扱い"
         .Range("A18").Font.Bold = True
         .Range("A18").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A23").Value = "<<社保未請求扱い>> 社保未請求扱い"
+        .Range("D23").Value = "<<社保月送り>>"
+        .Range("A23").Value = "社保月送り"
         .Range("A23").Font.Bold = True
         .Range("A23").Interior.Color = RGB(220, 230, 241)
         
-        ' 国保セクション - マーキングを含む
-        .Range("A28").Value = "<<国保再請求>> 国保返戻再請求"
+        ' 国保セクション - マーキング付き
+        .Range("D28").Value = "<<国保再請求>>"
+        .Range("A28").Value = "国保返戻再請求"
         .Range("A28").Font.Bold = True
         .Range("A28").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A33").Value = "<<国保月遅れ>> 国保月遅れ請求"
+        .Range("D33").Value = "<<国保月遅れ>>"
+        .Range("A33").Value = "国保月遅れ請求"
         .Range("A33").Font.Bold = True
         .Range("A33").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A38").Value = "<<国保月送り>> 国保月送り"
+        .Range("D38").Value = "<<国保返戻>>"
+        .Range("A38").Value = "国保返戻・査定"
         .Range("A38").Font.Bold = True
         .Range("A38").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A43").Value = "<<国保返戻>> 国保返戻・査定"
+        .Range("D43").Value = "<<国保未請求扱い>>"
+        .Range("A43").Value = "国保未請求扱い"
         .Range("A43").Font.Bold = True
         .Range("A43").Interior.Color = RGB(220, 230, 241)
         
-        .Range("A48").Value = "<<国保未請求扱い>> 国保未請求扱い"
+        .Range("D48").Value = "<<国保月送り>>"
+        .Range("A48").Value = "国保月送り"
         .Range("A48").Font.Bold = True
         .Range("A48").Interior.Color = RGB(220, 230, 241)
         
-        ' 介護セクション - マーキングを含む
-        .Range("A53").Value = "<<介護返戻>> 介護返戻"
+        ' その他のカテゴリ - マーキング付き
+        .Range("D53").Value = "<<介護返戻>>"
+        .Range("A53").Value = "介護返戻"
         .Range("A53").Font.Bold = True
         .Range("A53").Interior.Color = RGB(220, 230, 241)
         
-        ' その他セクション - マーキングを含む
-        .Range("A58").Value = "<<その他>> その他"
+        .Range("D58").Value = "<<その他>>"
+        .Range("A58").Value = "その他"
         .Range("A58").Font.Bold = True
         .Range("A58").Interior.Color = RGB(220, 230, 241)
         
         ' 列幅の調整
-        .Columns("A:C").ColumnWidth = 22  ' マーキングのためにA列を広げる
+        .Columns("A:C").ColumnWidth = 15
         .Columns("D:F").ColumnWidth = 20
         .Columns("G").ColumnWidth = 15
         .Columns("H:I").ColumnWidth = 8
         .Columns("J:L").ColumnWidth = 10
         .Columns("M").ColumnWidth = 25
+        
+        ' マーキングの表示/非表示を制御
+        Dim display_markers As Boolean
+        display_markers = True  ' 開発中はTrueに設定
+        
+        If Not display_markers Then
+            ' 本番環境ではマーキングを非表示にする
+            .Range("D3,D8,D13,D18,D23,D28,D33,D38,D43,D48,D53,D58").Font.ColorIndex = xlColorIndexWhite
+        End If
     End With
     
     ' 未請求シートを追加
