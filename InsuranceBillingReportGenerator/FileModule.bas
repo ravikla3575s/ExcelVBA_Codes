@@ -574,21 +574,65 @@ End Function
 Private Function SetTemplateInfo(ByVal wb As Workbook, ByVal billing_year As Integer, ByVal billing_month As Integer) As Boolean
     On Error GoTo ErrorHandler
     
-    ' メインシート（1枚目）を取得
-    Dim ws_main As Worksheet
+    ' メインシート（1枚目）と詳細シート（2枚目）を取得
+    Dim ws_main As Worksheet, ws_sub As Worksheet
     Set ws_main = wb.Sheets(1)
+    Set ws_sub = wb.Sheets(2)
+    
+    ' 調剤年月を計算（請求月の1ヶ月前が調剤月）
+    Dim dispensing_year As Integer, dispensing_month As Integer
+    If billing_month = 1 Then
+        dispensing_year = billing_year - 1
+        dispensing_month = 12
+    Else
+        dispensing_year = billing_year
+        dispensing_month = billing_month - 1
+    End If
+    
+    ' 請求日の設定
+    Dim send_date As String
+    send_date = billing_month & "月10日請求分"
+    
+    ' 店舗名の取得
+    Dim store_name As String
+    On Error Resume Next
+    ' ThisWorkbookに設定シートがあるか確認
+    Dim ws_settings As Worksheet
+    Set ws_settings = ThisWorkbook.Worksheets("設定")
+    If Not ws_settings Is Nothing Then
+        store_name = ws_settings.Range("B1").Value
+    Else
+        ' 設定シートがない場合はメインモジュールからパスを取得
+        store_name = ""
+    End If
+    On Error GoTo ErrorHandler
     
     ' 令和年を計算
-    Dim era_year As Integer
-    era_year = billing_year - 2018
+    Dim era_info As Object
+    Set era_info = DateConversionModule.ConvertEraYear(dispensing_year, True)
+    
+    ' シート名を設定
+    Dim era_year As String
+    era_year = CStr(era_info("year"))
+    
+    ' シート名を変更
+    On Error Resume Next
+    ws_main.Name = "R" & era_year & "." & dispensing_month
+    ws_sub.Name = UtilityModule.ConvertToCircledNumber(dispensing_month)
+    On Error GoTo ErrorHandler
     
     ' テンプレートの年月を設定
     With ws_main
-        ' 年月の設定（例：A1セルに "令和5年4月" のような形式で設定）
-        .Range("A1").Value = "令和" & era_year & "年" & billing_month & "月"
-        
-        ' その他必要な初期設定があれば追加
-        ' ...
+        ' 年月の設定
+        .Range("G2").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
+        .Range("I2").Value = send_date
+        .Range("J2").Value = store_name
+    End With
+    
+    With ws_sub
+        .Range("H1").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
+        .Range("J1").Value = send_date
+        .Range("L1").Value = store_name
     End With
     
     SetTemplateInfo = True
@@ -601,6 +645,8 @@ ErrorHandler:
     Debug.Print "Error description: " & Err.Description
     Debug.Print "Billing year: " & billing_year
     Debug.Print "Billing month: " & billing_month
+    Debug.Print "Dispensing year: " & dispensing_year
+    Debug.Print "Dispensing month: " & dispensing_month
     Debug.Print "=================================="
     
     Dim error_response As VbMsgBoxResult
@@ -609,7 +655,5 @@ ErrorHandler:
                            "エラー内容: " & Err.Description, _
                            vbYesNo + vbExclamation)
     
-    If error_response = vbYes Then
-        SetTemplateInfo = False
-    End If
+    SetTemplateInfo = (error_response = vbYes)
 End Function 
