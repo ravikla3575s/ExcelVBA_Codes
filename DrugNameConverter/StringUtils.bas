@@ -445,6 +445,9 @@ Public Sub InitializeWorkbook()
     ' シート1を設定シートとして初期化
     SetupPackageTypeDropdown
     
+    ' Mac用の使用方法指示を追加
+    DrugNameConverter.AddInstructions
+    
     ' シート2を比較対象シートとして初期化
     Dim targetSheet As Worksheet
     Set targetSheet = ThisWorkbook.Worksheets(2)
@@ -481,7 +484,7 @@ Public Sub InitializeWorkbook()
            "1. 設定シートのB4セルで包装形態を選択してください。" & vbCrLf & _
            "2. シート2に比較対象の医薬品名を入力してください。" & vbCrLf & _
            "3. 設定シートのB7以降に検索する医薬品名を入力してください。" & vbCrLf & _
-           "4. マクロを実行して処理を開始してください。", vbInformation
+           "4. メニューから「ツール」→「マクロ」を選択し、「RunDrugNameComparison」を実行してください。", vbInformation
 End Sub
 
 ' 比較ボタンをシートに追加する関数
