@@ -151,15 +151,19 @@ ErrorHandler:
     Debug.Print "Report file name: " & report_file_name
     Debug.Print "=================================="
     
-    MsgBox "ファイル作成中にエラーが発生しました。" & vbCrLf & _
-           "エラー番号: " & Err.Number & vbCrLf & _
-           "エラー内容: " & Err.Description & vbCrLf & _
-           "ファイル: " & IIf(Not file Is Nothing, file.Name, "不明"), _
-           vbCritical, "エラー"
+    Dim error_response As VbMsgBoxResult
+    error_response = MsgBox("ファイル作成中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
+                           "エラー番号: " & Err.Number & vbCrLf & _
+                           "エラー内容: " & Err.Description & vbCrLf & _
+                           "ファイル: " & IIf(Not file Is Nothing, file.Name, "不明"), _
+                           vbYesNo + vbExclamation)
     
-    If Not report_wb Is Nothing Then
-        report_wb.Close SaveChanges:=False
-        Set report_wb = Nothing
+    If error_response = vbYes Then
+        If Not report_wb Is Nothing Then
+            Debug.Print "Cleaning up: Closing workbook"
+            report_wb.Close SaveChanges:=True
+            Set report_wb = Nothing
+        End If
     End If
     Resume NextFile
 End Function
@@ -348,12 +352,15 @@ ErrorHandler:
     Debug.Print "Error description: " & Err.Description
     Debug.Print "=================================="
     
-    MsgBox "ファイル名の生成中にエラーが発生しました。" & vbCrLf & _
-           "エラー番号: " & Err.Number & vbCrLf & _
-           "エラー内容: " & Err.Description, _
-           vbCritical, "エラー"
-           
-    GenerateReportFileName = ""
+    Dim error_response As VbMsgBoxResult
+    error_response = MsgBox("ファイル名の生成中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
+                           "エラー番号: " & Err.Number & vbCrLf & _
+                           "エラー内容: " & Err.Description, _
+                           vbYesNo + vbExclamation)
+    
+    If error_response = vbYes Then
+        GenerateReportFileName = ""
+    End If
 End Function
 
 Function ProcessCsvFilesByType(file_system As Object, csv_files As Collection, file_type_name As String)
@@ -520,15 +527,11 @@ NextFile:
         If Not report_wb Is Nothing Then
             Debug.Print "Cleaning up: Closing workbook"
             ' エラーが発生したが、重要な変更がある場合は保存するかどうかをユーザーに確認
-            If Not save_successful And process_error Then
-                error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
-                                      "エラー: " & Err.Description & vbCrLf & _
-                                      "ファイル: " & file_obj.Name, _
-                                      vbYesNo + vbQuestion, "保存の確認")
-                report_wb.Close SaveChanges:=(error_response = vbYes)
-            Else
-                report_wb.Close SaveChanges:=save_successful
-            End If
+            Dim error_response As VbMsgBoxResult
+            error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
+                                  "エラー内容: " & Err.Description, _
+                                  vbYesNo + vbExclamation)
+            report_wb.Close SaveChanges:=(error_response = vbYes)
             Set report_wb = Nothing
         End If
         Set ws_csv = Nothing
@@ -551,21 +554,19 @@ ErrorHandler:
     Debug.Print "File type: " & file_type_name
     Debug.Print "=================================="
     
-    MsgBox "処理中にエラーが発生しました。" & vbCrLf & _
-           "エラー番号: " & Err.Number & vbCrLf & _
-           "エラー内容: " & Err.Description & vbCrLf & _
-           "ファイル: " & IIf(Not file_obj Is Nothing, file_obj.Name, "不明"), _
-           vbCritical, "エラー"
+    Dim error_response As VbMsgBoxResult
+    error_response = MsgBox("処理中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
+                           "エラー番号: " & Err.Number & vbCrLf & _
+                           "エラー内容: " & Err.Description & vbCrLf & _
+                           "ファイル: " & IIf(Not file_obj Is Nothing, file_obj.Name, "不明"), _
+                           vbYesNo + vbExclamation)
     
-    If Not report_wb Is Nothing Then
-        ' エラーが発生した場合、ユーザーに保存するかどうかを確認
-        Dim error_response As VbMsgBoxResult
-        error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
-                               "エラー: " & Err.Description & vbCrLf & _
-                               "ファイル: " & file_obj.Name, _
-                               vbYesNo + vbQuestion, "保存の確認")
-        report_wb.Close SaveChanges:=(error_response = vbYes)
-        Set report_wb = Nothing
+    If error_response = vbYes Then
+        If Not report_wb Is Nothing Then
+            Debug.Print "Cleaning up: Closing workbook"
+            report_wb.Close SaveChanges:=True
+            Set report_wb = Nothing
+        End If
     End If
     Resume NextFile
 End Function
@@ -602,10 +603,13 @@ ErrorHandler:
     Debug.Print "Billing month: " & billing_month
     Debug.Print "=================================="
     
-    MsgBox "テンプレート情報の設定中にエラーが発生しました。" & vbCrLf & _
-           "エラー番号: " & Err.Number & vbCrLf & _
-           "エラー内容: " & Err.Description, _
-           vbCritical, "エラー"
+    Dim error_response As VbMsgBoxResult
+    error_response = MsgBox("テンプレート情報の設定中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
+                           "エラー番号: " & Err.Number & vbCrLf & _
+                           "エラー内容: " & Err.Description, _
+                           vbYesNo + vbExclamation)
     
-    SetTemplateInfo = False
+    If error_response = vbYes Then
+        SetTemplateInfo = False
+    End If
 End Function 
