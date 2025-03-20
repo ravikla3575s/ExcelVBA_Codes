@@ -358,7 +358,8 @@ Sub TransferBillingDetails(report_wb As Workbook, csv_file_name As String, dispe
     End If
     
     ' 詳細シート上の各カテゴリ開始行を取得
-    Set start_row_dict = UtilityModule.GetCategoryStartRowsFromMarkers(ws_details, payer_type)
+    ' マーカーを基にした新しい方法で開始行を取得
+    Set start_row_dict = UtilityModule.GetCategoryStartRowsByMarker(ws_details, payer_type)
     
     If start_row_dict.Count = 0 Then
         Debug.Print "WARNING: カテゴリの開始行が見つかりません: " & payer_type
