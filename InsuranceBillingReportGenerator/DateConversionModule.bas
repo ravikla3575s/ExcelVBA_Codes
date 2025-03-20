@@ -9,13 +9,13 @@ Function ConvertEraYear(ByVal western_year As Integer, Optional ByVal return_dic
         era = "—ß˜a"
         era_year = western_year - 2018
     ElseIf western_year >= 1989 Then
-        era = "•½¬"
+        era = "•½¬"
         era_year = western_year - 1988
     ElseIf western_year >= 1926 Then
-        era = "º˜a"
+        era = "º˜a"
         era_year = western_year - 1925
     ElseIf western_year >= 1912 Then
-        era = "‘å³"
+        era = "‘å³"
         era_year = western_year - 1911
     ElseIf western_year >= 1868 Then
         era = "–¾¡"
@@ -33,7 +33,7 @@ Function ConvertEraYear(ByVal western_year As Integer, Optional ByVal return_dic
         result.Add "year", era_year
         Set ConvertEraYear = result
     Else
-        ' Œ³†•¶š—ñ‚ğ•Ô‚·
+        ' Œ³†•¶š—ñ‚ğ•Ô‚·
         ConvertEraYear = era
     End If
 End Function
@@ -42,11 +42,11 @@ Private Function GetEraInfo(western_year As Integer, ByRef era_code As String, B
     If western_year >= 2019 Then
         era_code = "5": era_year = western_year - 2018   ' —ß˜a
     ElseIf western_year >= 1989 Then
-        era_code = "4": era_year = western_year - 1988   ' •½¬
+        era_code = "4": era_year = western_year - 1988   ' •½¬
     ElseIf western_year >= 1926 Then
-        era_code = "3": era_year = western_year - 1925   ' º˜a
+        era_code = "3": era_year = western_year - 1925   ' º˜a
     ElseIf western_year >= 1912 Then
-        era_code = "2": era_year = western_year - 1911   ' ‘å³
+        era_code = "2": era_year = western_year - 1911   ' ‘å³
     ElseIf western_year >= 1868 Then
         era_code = "1": era_year = western_year - 1867   ' –¾¡
     Else
@@ -61,11 +61,11 @@ Private Function CalculateEraYear(ByVal western_year As Integer) As Integer
     If western_year >= 2019 Then
         CalculateEraYear = western_year - 2018   ' —ß˜a
     ElseIf western_year >= 1989 Then
-        CalculateEraYear = western_year - 1988   ' •½¬
+        CalculateEraYear = western_year - 1988   ' •½¬
     ElseIf western_year >= 1926 Then
-        CalculateEraYear = western_year - 1925   ' º˜a
+        CalculateEraYear = western_year - 1925   ' º˜a
     ElseIf western_year >= 1912 Then
-        CalculateEraYear = western_year - 1911   ' ‘å³
+        CalculateEraYear = western_year - 1911   ' ‘å³
     ElseIf western_year >= 1868 Then
         CalculateEraYear = western_year - 1867   ' –¾¡
     Else
@@ -84,9 +84,9 @@ Function ConvertToWesternDate(dispensing_code As String) As String
     month_part = Right(dispensing_code, 2)
     Select Case era_code
         Case "5": western_year = 2018 + year_num   ' —ß˜a
-        Case "4": western_year = 1988 + year_num   ' •½¬
-        Case "3": western_year = 1925 + year_num   ' º˜a
-        Case "2": western_year = 1911 + year_num   ' ‘å³
+        Case "4": western_year = 1988 + year_num   ' •½¬
+        Case "3": western_year = 1925 + year_num   ' º˜a
+        Case "2": western_year = 1911 + year_num   ' ‘å³
         Case "1": western_year = 1867 + year_num   ' –¾¡
         Case Else: western_year = 2000 + year_num
     End Select
