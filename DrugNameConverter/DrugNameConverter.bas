@@ -1,6 +1,6 @@
 Option Explicit
 
-' ラッパーモジュール - 各種機能を呼び出す入口となるモジュール
+' ラッパーモジュール - Mac互換のコード
 
 ' メイン処理を呼び出すラッパー関数（7行目以降の医薬品名比較）
 Public Sub RunDrugNameComparison()
@@ -44,31 +44,43 @@ Public Sub SetupPackageTypeDropdown()
     MsgBox "包装形態のドロップダウンリストを設定しました。", vbInformation
 End Sub
 
-' ボタンの作成とマクロの割り当てを行うラッパー関数
-Public Sub CreateComparisonButton()
+' シート1にインストラクションを追加する関数
+Public Sub AddInstructions()
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Worksheets(1)
     
-    ' 既存のボタンを削除
-    On Error Resume Next
-    ws.Shapes.SelectAll
-    Selection.Delete
-    On Error GoTo 0
+    ' 既存の指示を削除
+    ws.Range("A2:C3").ClearContents
     
-    ' フォームコントロールボタンを作成
-    Dim btn As Shape
-    Set btn = ws.Shapes.AddShape(msoShapeRectangle, 200, 30, 120, 30)
+    ' 指示を追加
+    ws.Range("A2").Value = "【使い方】"
+    ws.Range("A3").Value = "1. B4の包装形態を選択して下さい"
+    ws.Range("A4").Value = "包装形態:"
+    ws.Range("B4").Font.Bold = True
     
-    With btn
-        .Fill.ForeColor.RGB = RGB(221, 235, 247) ' 薄い青色
-        .Line.ForeColor.RGB = RGB(91, 155, 213) ' 濃い青色
-        .TextFrame.Characters.Text = "医薬品名比較"
-        .TextFrame.HorizontalAlignment = xlHAlignCenter
-        .TextFrame.VerticalAlignment = xlVAlignCenter
-        .Name = "CompareButton"
-        .OnAction = "DrugNameConverter.RunDrugNameComparison"
+    ' セルの書式設定
+    ws.Range("A2").Font.Bold = True
+    ws.Range("A2").Font.Size = 12
+    
+    ' 実行方法の指示
+    ws.Range("A5").Value = "2. B7以降に検索する医薬品名を入力"
+    ws.Range("A6").Value = "No."
+    ws.Range("B6").Value = "検索医薬品名"
+    ws.Range("C6").Value = "一致医薬品名"
+    
+    With ws.Range("A6:C6")
+        .Font.Bold = True
+        .Interior.Color = RGB(221, 235, 247) ' 薄い青色の背景
     End With
     
-    MsgBox "比較ボタンを作成しました。このボタンをクリックすると7行目以降の医薬品名比較処理が実行されます。", vbInformation
+    ' 実行方法の案内
+    Dim note As String
+    note = "※実行方法: メニューから「ツール」→「マクロ」を選択し、" & vbCrLf & _
+           "「RunDrugNameComparison」を選んで「実行」ボタンをクリックします。"
+    
+    ws.Range("A" & (ws.Cells(ws.Rows.Count, "A").End(xlUp).Row + 2)).Value = note
+    
+    MsgBox "使用方法の指示を追加しました。Mac版Excelでは、メニューから「ツール」→「マクロ」を選択し、" & vbCrLf & _
+           "「RunDrugNameComparison」を選んで処理を実行してください。", vbInformation
 End Sub
 
