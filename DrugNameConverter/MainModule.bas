@@ -559,3 +559,54 @@ Private Function CalculateMatchingScore(ByRef keywords As Variant, ByVal targetD
     End If
 End Function
 
+' Mac対応のための専用関数を追加
+Public Function FindBestMatchingDrugForMac(ByVal searchDrug As String, ByRef targetDrugs() As String, ByVal packageType As String) As String
+    Dim i As Long
+    Dim bestMatchIndex As Long, bestMatchScore As Long, currentScore As Long
+    
+    bestMatchIndex = -1
+    bestMatchScore = 0
+    
+    ' 検索対象をキーワードに分解
+    Dim keywords As Variant
+    keywords = StringUtils.ExtractKeywords(searchDrug)
+    
+    ' 包装形態の特別処理
+    Dim skipPackageCheck As Boolean
+    skipPackageCheck = (packageType = "(未定義)" Or packageType = "その他(なし)")
+    
+    ' 各比較対象に対して処理
+    For i = LBound(targetDrugs) To UBound(targetDrugs)
+        If Len(targetDrugs(i)) > 0 Then
+            ' 包装形態チェック
+            Dim matchesPackage As Boolean
+            
+            If skipPackageCheck Then
+                ' 未定義またはその他の場合は包装形態チェックをスキップ
+                matchesPackage = True
+            Else
+                ' 包装形態が一致するか確認
+                matchesPackage = StringUtils.CheckPackageTypeMatch(targetDrugs(i), packageType)
+            End If
+            
+            If matchesPackage Then
+                ' キーワード一致率を計算
+                currentScore = StringUtils.CalculateMatchingScore(keywords, targetDrugs(i))
+                
+                ' より高いスコアを記録
+                If currentScore > bestMatchScore Then
+                    bestMatchScore = currentScore
+                    bestMatchIndex = i
+                End If
+            End If
+        End If
+    Next i
+    
+    ' 結果を返す（閾値以上のスコアの場合のみ）
+    If bestMatchScore >= 50 And bestMatchIndex >= 0 Then
+        FindBestMatchingDrugForMac = targetDrugs(bestMatchIndex)
+    Else
+        FindBestMatchingDrugForMac = ""
+    End If
+End Function
+
