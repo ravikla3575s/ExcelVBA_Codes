@@ -2,40 +2,10 @@ Option Explicit
 
 ' ラッパーモジュール - 各種機能を呼び出す入口となるモジュール
 
-' 薬品名の一致率に基づくメイン処理を呼び出す関数
-Public Sub RunDrugNameMainProcess()
-    ' MainModuleの関数を呼び出し
-    MainModule.MainProcess  ' フルパスで指定
-End Sub
-
-' 薬品名の検索と転記処理を呼び出す関数
-Public Sub RunSearchAndTransferDrugData()
-    ' MainModuleの関数を呼び出し
-    MainModule.SearchAndTransferDrugData  ' フルパスで指定
-End Sub
-
-' 一致率計算による薬品名処理を呼び出す関数
-Public Sub RunProcessDrugNamesWithMatchRate()
-    ' MainModuleの関数を呼び出し
-    MainModule.ProcessDrugNamesWithMatchRate  ' フルパスで指定
-End Sub
-
-' 包装形態を考慮した医薬品名比較と転記処理を呼び出す関数
-Public Sub RunCompareAndTransferDrugNamesByPackage()
-    ' MainModuleの関数を呼び出し
-    MainModule.CompareAndTransferDrugNamesByPackage
-End Sub
-
-' 設定シートのB列7行目以降を比較して転記する処理を呼び出す関数
-Public Sub RunCompareAndTransferDrugNamesFromRow7()
-    ' MainModuleの関数を呼び出し
-    CompareAndTransferDrugNamesFromRow7
-End Sub
-
-' メイン処理を呼び出すラッパー関数
+' メイン処理を呼び出すラッパー関数（7行目以降の医薬品名比較）
 Public Sub RunDrugNameComparison()
     ' MainModuleの関数を呼び出し
-    CompareAndTransferDrugNames
+    MainModule.CompareAndTransferDrugNamesFromRow7
 End Sub
 
 ' B4セルに包装形態の選択肢をドロップダウンリストとして設定する関数
@@ -72,4 +42,33 @@ Public Sub SetupPackageTypeDropdown()
     End With
     
     MsgBox "包装形態のドロップダウンリストを設定しました。", vbInformation
-End Sub 
+End Sub
+
+' ボタンの作成とマクロの割り当てを行うラッパー関数
+Public Sub CreateComparisonButton()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(1)
+    
+    ' 既存のボタンを削除
+    On Error Resume Next
+    ws.Shapes.SelectAll
+    Selection.Delete
+    On Error GoTo 0
+    
+    ' フォームコントロールボタンを作成
+    Dim btn As Shape
+    Set btn = ws.Shapes.AddShape(msoShapeRectangle, 200, 30, 120, 30)
+    
+    With btn
+        .Fill.ForeColor.RGB = RGB(221, 235, 247) ' 薄い青色
+        .Line.ForeColor.RGB = RGB(91, 155, 213) ' 濃い青色
+        .TextFrame.Characters.Text = "医薬品名比較"
+        .TextFrame.HorizontalAlignment = xlHAlignCenter
+        .TextFrame.VerticalAlignment = xlVAlignCenter
+        .Name = "CompareButton"
+        .OnAction = "DrugNameConverter.RunDrugNameComparison"
+    End With
+    
+    MsgBox "比較ボタンを作成しました。このボタンをクリックすると7行目以降の医薬品名比較処理が実行されます。", vbInformation
+End Sub
+
