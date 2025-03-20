@@ -1,5 +1,8 @@
 Option Explicit
 
+' エラー応答を保持するグローバル変数
+Public error_response As VbMsgBoxResult
+
 Function SelectCsvFolder() As String
     With Application.FileDialog(msoFileDialogFolderPicker)
         .Title = "CSVフォルダを選択してください"
@@ -151,7 +154,6 @@ ErrorHandler:
     Debug.Print "Report file name: " & report_file_name
     Debug.Print "=================================="
     
-    Dim error_response As VbMsgBoxResult
     error_response = MsgBox("ファイル作成中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description & vbCrLf & _
@@ -352,7 +354,6 @@ ErrorHandler:
     Debug.Print "Error description: " & Err.Description
     Debug.Print "=================================="
     
-    Dim error_response As VbMsgBoxResult
     error_response = MsgBox("ファイル名の生成中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description, _
@@ -527,7 +528,6 @@ NextFile:
         If Not report_wb Is Nothing Then
             Debug.Print "Cleaning up: Closing workbook"
             ' エラーが発生したが、重要な変更がある場合は保存するかどうかをユーザーに確認
-            Dim error_response As VbMsgBoxResult
             error_response = MsgBox("エラーが発生しました。変更を保存しますか？" & vbCrLf & _
                                   "エラー内容: " & Err.Description, _
                                   vbYesNo + vbExclamation)
@@ -554,7 +554,6 @@ ErrorHandler:
     Debug.Print "File type: " & file_type_name
     Debug.Print "=================================="
     
-    Dim error_response As VbMsgBoxResult
     error_response = MsgBox("処理中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description & vbCrLf & _
@@ -649,7 +648,6 @@ ErrorHandler:
     Debug.Print "Dispensing month: " & dispensing_month
     Debug.Print "=================================="
     
-    Dim error_response As VbMsgBoxResult
     error_response = MsgBox("テンプレート情報の設定中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description, _
