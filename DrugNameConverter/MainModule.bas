@@ -53,9 +53,9 @@ Public Sub MainProcess()
                 targetParts = ParseDrugString(ws2.Cells(bestMatchIndex, "B").Value)
                 
                 ws1.Cells(i, "E").Value = "基本名:" & sourceParts.BaseName & _
-                                         " 剤型:" & sourceParts.FormType & _
-                                         " 規格:" & sourceParts.Strength & _
-                                         " メーカー:" & sourceParts.Maker
+                                         " 剤型:" & sourceParts.formType & _
+                                         " 規格:" & sourceParts.strength & _
+                                         " メーカー:" & sourceParts.maker
             End If
         End If
     Next i
@@ -204,12 +204,6 @@ Public Sub CompareAndTransferDrugNamesByPackage()
     Dim packageType As String
     packageType = wsSettings.Range("B4").Value
     
-    ' 包装形態が選択されているか確認
-    If packageType <> "PTP" And packageType <> "バラ" Then
-        MsgBox "B4セルに包装形態（PTPまたはバラ）を設定してください。", vbExclamation
-        GoTo CleanExit
-    End If
-    
     ' 最終行を取得
     Dim lastRowSettings As Long, lastRowTarget As Long
     lastRowSettings = wsSettings.Cells(wsSettings.Rows.Count, "B").End(xlUp).Row
@@ -276,13 +270,13 @@ Public Function CalculateMatchScore(ByRef searchParts As DrugNameParts, ByRef ta
     totalWeight = totalWeight + 50
     
     ' 剤型の比較（重み: 20%）
-    If StrComp(searchParts.FormType, targetParts.FormType, vbTextCompare) = 0 Then
+    If StrComp(searchParts.formType, targetParts.formType, vbTextCompare) = 0 Then
         score = score + 20
     End If
     totalWeight = totalWeight + 20
     
     ' 規格の比較（重み: 30%）
-    If CompareStrength(searchParts.Strength, targetParts.Strength) Then
+    If CompareStrength(searchParts.strength, targetParts.strength) Then
         score = score + 30
     End If
     totalWeight = totalWeight + 30
@@ -296,7 +290,7 @@ Public Function CalculateMatchScore(ByRef searchParts As DrugNameParts, ByRef ta
 End Function
 
 ' 包装形態を考慮した最適な医薬品名の一致を検索する
-Private Function FindBestMatchWithPackage(ByVal searchDrug As String, ByVal targetDrugs() As String, ByVal requiredPackage As String) As String
+Private Function FindBestMatchWithPackage(ByVal searchDrug As String, ByRef targetDrugs() As String, ByVal requiredPackage As String) As String
     Dim i As Long
     Dim bestMatchScore As Double
     Dim bestMatchIndex As Long
@@ -338,9 +332,8 @@ Private Function FindBestMatchWithPackage(ByVal searchDrug As String, ByVal targ
     End If
 End Function
 
-' 設定シートのB列7行目以降の医薬品名をB4セルの包装形態に基づいて比較し、
-' 一致するものをC列に転記する
-Public Sub CompareAndTransferDrugNames()
+' 7行目以降の医薬品名比較と転記を行う関数
+Public Sub CompareAndTransferDrugNamesFromRow7()
     On Error GoTo ErrorHandler
     
     ' 初期設定
@@ -349,7 +342,7 @@ Public Sub CompareAndTransferDrugNames()
     ' ワークシート参照の取得
     Dim settingsSheet As Worksheet, targetSheet As Worksheet
     Set settingsSheet = ThisWorkbook.Worksheets(1) ' 設定シート
-    Set targetSheet = ThisWorkbook.Worksheets(2)   ' 比較対象シート
+    Set targetSheet = ThisWorkbook.Worksheets(2)   ' 比較対象のシート
     
     ' 包装形態の取得と確認
     Dim packageType As String
@@ -390,8 +383,11 @@ Public Sub CompareAndTransferDrugNames()
     Next i
     
     ' 医薬品名の比較と転記（7行目から開始）
-    For i = 7 To lastRowSettings
-        Dim searchDrug As String, bestMatch As String
+    Dim searchDrug As String, bestMatch As String
+    Dim processedCount As Long
+    processedCount = 0
+    
+    For i = 7 To lastRowSettings ' ここで7行目以降を処理
         searchDrug = settingsSheet.Cells(i, "B").Value
         
         If Len(searchDrug) > 0 Then
@@ -400,12 +396,18 @@ Public Sub CompareAndTransferDrugNames()
             
             ' C列に転記
             settingsSheet.Cells(i, "C").Value = bestMatch
+            
+            ' 処理数をカウント
+            If Len(bestMatch) > 0 Then
+                processedCount = processedCount + 1
+            End If
         End If
     Next i
     
 CleanExit:
     Application.ScreenUpdating = True
-    MsgBox "処理が完了しました。", vbInformation
+    MsgBox "処理が完了しました。" & vbCrLf & _
+           processedCount & "件の医薬品名が一致しました。", vbInformation
     Exit Sub
     
 ErrorHandler:
@@ -523,6 +525,13 @@ Private Function ExtractKeywords(ByVal drugName As String) As Variant
         End If
     Next i
     
+    ' 結果が空の場合の処理
+    If validCount = 0 Then
+        ReDim result(0)
+        result(0) = LCase(Trim(drugName))
+        validCount = 1
+    End If
+    
     ReDim Preserve result(validCount - 1)
     ExtractKeywords = result
 End Function
@@ -549,3 +558,4 @@ Private Function CalculateMatchingScore(ByRef keywords As Variant, ByVal targetD
         CalculateMatchingScore = 0
     End If
 End Function
+
