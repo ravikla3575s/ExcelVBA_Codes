@@ -3,9 +3,9 @@ Option Explicit
 ' 薬品名の構造体
 Public Type DrugNameParts
     BaseName As String
-    FormType As String
-    Strength As String
-    Maker As String
+    formType As String
+    strength As String
+    maker As String
     Package As String
 End Type
 
@@ -20,23 +20,23 @@ Public Function ParseDrugString(ByVal drugStr As String) As DrugNameParts
     ' メーカー名を抽出 (「」内)
     Dim makerMatch As String
     makerMatch = ExtractBetweenQuotes(tempStr)
-    result.Maker = makerMatch
+    result.maker = makerMatch
     
     ' 規格を抽出 (数字+単位)
     Dim strengthMatch As String
     strengthMatch = ExtractStrengthSimple(tempStr)
-    result.Strength = strengthMatch
+    result.strength = strengthMatch
     
     ' 剤型を抽出
     Dim formMatch As String
     formMatch = ExtractFormTypeSimple(tempStr)
-    result.FormType = formMatch
+    result.formType = formMatch
     
     ' 包装形態を抽出
     result.Package = ExtractPackageTypeSimple(tempStr)
     
     ' 基本名を抽出（メーカー名と規格の前まで）
-    result.BaseName = ExtractBaseNameSimple(tempStr, result.Maker, result.Strength, result.FormType)
+    result.BaseName = ExtractBaseNameSimple(tempStr, result.maker, result.strength, result.formType)
     
     ParseDrugString = result
 End Function
@@ -187,13 +187,12 @@ Public Function ExtractPackageTypeSimple(ByVal text As String) As String
     Dim packages As Variant
     Dim i As Long
     
-    packages = Array("PTP", "ＰＴＰ", "P.T.P.", "P.T.P", "バラ", "ﾊﾞﾗ", "BARA", _
-                     "分包", "SP", "ＳＰ", "瓶", "ボトル", "管", "アンプル", "シリンジ")
+    packages = Array("(未定義)", "その他(なし)", "包装小", "調剤用", "PTP", "分包", "バラ", "SP", "PTP(患者用)")
     
     For i = 0 To UBound(packages)
         If InStr(1, text, packages(i), vbTextCompare) > 0 Then
-            ' 見つかった包装形態を標準化
-            ExtractPackageTypeSimple = NormalizePackageType(packages(i))
+            ' 見つかった包装形態をそのまま返す（NormalizePackageTypeは使わない）
+            ExtractPackageTypeSimple = packages(i)
             Exit Function
         End If
     Next i
@@ -204,7 +203,8 @@ Public Function ExtractPackageTypeSimple(ByVal text As String) As String
     If startPos > 0 Then
         endPos = InStr(startPos + 1, text, "/")
         If endPos > startPos Then
-            ExtractPackageTypeSimple = NormalizePackageType(Mid(text, startPos + 1, endPos - startPos - 1))
+            ' スラッシュ間の文字列をそのまま返す（NormalizePackageTypeは使わない）
+            ExtractPackageTypeSimple = Mid(text, startPos + 1, endPos - startPos - 1)
             Exit Function
         End If
     End If
@@ -248,25 +248,27 @@ Public Function CompareDrugStringsWithRate(ByVal sourceStr As String, ByVal targ
     End If
     
     ' 剤型の比較（完全一致）
-    If StrComp(sourceParts.FormType, targetParts.FormType, vbTextCompare) = 0 Then
+    If StrComp(sourceParts.formType, targetParts.formType, vbTextCompare) = 0 Then
         matchCount = matchCount + 1
     End If
     
     ' 規格の比較（数値と単位を正規化して比較）
-    If CompareStrength(sourceParts.Strength, targetParts.Strength) Then
+    If CompareStrength(sourceParts.strength, targetParts.strength) Then
         matchCount = matchCount + 1
     End If
     
     ' メーカー名の比較（完全一致）
-    If StrComp(sourceParts.Maker, targetParts.Maker, vbTextCompare) = 0 Then
+    If StrComp(sourceParts.maker, targetParts.maker, vbTextCompare) = 0 Then
         matchCount = matchCount + 1
     End If
     
     ' 包装形態の比較（ある程度の揺れを許容）
-    If ComparePackageType(sourceParts.Package, targetParts.Package) Then
+    ' ComparePackageType関数の代わりに単純な文字列比較を使用
+    If StrComp(sourceParts.Package, targetParts.Package, vbTextCompare) = 0 Then
         matchCount = matchCount + 1
     End If
     
     ' 一致率を計算（百分率）
     CompareDrugStringsWithRate = (matchCount / totalItems) * 100
-End Function 
+End Function
+
