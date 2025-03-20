@@ -41,7 +41,7 @@ Function ConvertToCircledNumber(ByVal month As Integer) As String
 End Function
 
 ' カテゴリの開始行を取得する関数
-Private Function GetStartRow(ws As Worksheet, category_name As String) As Long
+Public Function GetStartRow(ws As Worksheet, category_name As String) As Long
     Dim found_cell As Range
     Set found_cell = ws.Cells.Find(what:=category_name, LookAt:=xlWhole)
     If Not found_cell Is Nothing Then
@@ -52,7 +52,7 @@ Private Function GetStartRow(ws As Worksheet, category_name As String) As Long
 End Function
 
 ' カテゴリの開始行を取得する関数
-Private Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As Object
+Public Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As Object
     Dim start_row_dict As Object
     Set start_row_dict = CreateObject("Scripting.Dictionary")
     
@@ -84,7 +84,7 @@ Private Function GetCategoryStartRows(ws As Worksheet, payer_type As String) As 
 End Function
 
 ' 追加行の挿入処理
-Private Sub InsertAdditionalRows(ws As Worksheet, start_row_dict As Object, _
+Public Sub InsertAdditionalRows(ws As Worksheet, start_row_dict As Object, _
     rebill_count As Long, late_count As Long, assessment_count As Long)
     
     Dim a As Long, b As Long, c As Long
