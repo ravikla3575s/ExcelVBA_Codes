@@ -151,7 +151,7 @@ ErrorHandler:
     Debug.Print "Report file name: " & report_file_name
     Debug.Print "=================================="
     
-    Dim error_response As VbMsgBoxResult
+    ' error_responseは既に宣言済みのため削除
     error_response = MsgBox("ファイル作成中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
                            "エラー番号: " & Err.Number & vbCrLf & _
                            "エラー内容: " & Err.Description & vbCrLf & _
