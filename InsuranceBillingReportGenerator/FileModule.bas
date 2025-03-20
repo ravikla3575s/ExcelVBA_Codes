@@ -633,7 +633,7 @@ Private Function SetTemplateInfo(ByVal wb As Workbook, ByVal billing_year As Int
     Dim ws_settings As Worksheet
     Set ws_settings = ThisWorkbook.Worksheets("設定")
     If Not ws_settings Is Nothing Then
-        store_name = ws_settings.Range("B1").value
+        store_name = ws_settings.Range("B1").Value
     Else
         ' 設定シートがない場合はメインモジュールからパスを取得
         store_name = ""
@@ -657,16 +657,141 @@ Private Function SetTemplateInfo(ByVal wb As Workbook, ByVal billing_year As Int
     ' テンプレートの年月を設定
     With ws_main
         ' 年月の設定
-        .Range("G2").value = dispensing_year & "年" & dispensing_month & "月調剤分"
-        .Range("I2").value = send_date
-        .Range("J2").value = store_name
+        .Range("G2").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
+        .Range("I2").Value = send_date
+        .Range("J2").Value = store_name
     End With
     
     With ws_sub
-        .Range("H1").value = dispensing_year & "年" & dispensing_month & "月調剤分"
-        .Range("J1").value = send_date
-        .Range("L1").value = store_name
+        .Range("H1").Value = dispensing_year & "年" & dispensing_month & "月調剤分"
+        .Range("J1").Value = send_date
+        .Range("L1").Value = store_name
+        
+        ' 詳細シートに必要な見出しを設定
+        .Cells.Clear
+        
+        ' ヘッダー行を設定
+        .Range("A1:M1").Merge
+        .Range("A1").Value = dispensing_year & "年" & dispensing_month & "月 保険請求・入金状況"
+        .Range("A1").Font.Size = 14
+        .Range("A1").Font.Bold = True
+        .Range("A1").HorizontalAlignment = xlCenter
+        
+        ' 列ヘッダー
+        .Range("D2").Value = "患者氏名"
+        .Range("E2").Value = "調剤年月"
+        .Range("F2").Value = "医療機関"
+        .Range("G2").Value = "事由"
+        .Range("H2").Value = "社保"
+        .Range("I2").Value = "国保"
+        .Range("J2").Value = "点数"
+        .Range("K2").Value = "金額"
+        .Range("L2").Value = "担当"
+        .Range("M2").Value = "備考"
+        
+        ' 列ヘッダーのフォーマット
+        .Range("D2:M2").Font.Bold = True
+        .Range("D2:M2").Interior.Color = RGB(220, 230, 241)  ' 薄い青
+        .Range("D2:M2").Borders.LineStyle = xlContinuous
+        
+        ' 社保セクション - マーキングを含む
+        .Range("A3").Value = "<<社保再請求>> 社保返戻再請求"
+        .Range("A3").Font.Bold = True
+        .Range("A3").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A8").Value = "<<社保月遅れ>> 社保月遅れ請求"
+        .Range("A8").Font.Bold = True
+        .Range("A8").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A13").Value = "<<社保月送り>> 社保月送り"
+        .Range("A13").Font.Bold = True
+        .Range("A13").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A18").Value = "<<社保返戻>> 社保返戻・査定"
+        .Range("A18").Font.Bold = True
+        .Range("A18").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A23").Value = "<<社保未請求扱い>> 社保未請求扱い"
+        .Range("A23").Font.Bold = True
+        .Range("A23").Interior.Color = RGB(220, 230, 241)
+        
+        ' 国保セクション - マーキングを含む
+        .Range("A28").Value = "<<国保再請求>> 国保返戻再請求"
+        .Range("A28").Font.Bold = True
+        .Range("A28").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A33").Value = "<<国保月遅れ>> 国保月遅れ請求"
+        .Range("A33").Font.Bold = True
+        .Range("A33").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A38").Value = "<<国保月送り>> 国保月送り"
+        .Range("A38").Font.Bold = True
+        .Range("A38").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A43").Value = "<<国保返戻>> 国保返戻・査定"
+        .Range("A43").Font.Bold = True
+        .Range("A43").Interior.Color = RGB(220, 230, 241)
+        
+        .Range("A48").Value = "<<国保未請求扱い>> 国保未請求扱い"
+        .Range("A48").Font.Bold = True
+        .Range("A48").Interior.Color = RGB(220, 230, 241)
+        
+        ' 介護セクション - マーキングを含む
+        .Range("A53").Value = "<<介護返戻>> 介護返戻"
+        .Range("A53").Font.Bold = True
+        .Range("A53").Interior.Color = RGB(220, 230, 241)
+        
+        ' その他セクション - マーキングを含む
+        .Range("A58").Value = "<<その他>> その他"
+        .Range("A58").Font.Bold = True
+        .Range("A58").Interior.Color = RGB(220, 230, 241)
+        
+        ' 列幅の調整
+        .Columns("A:C").ColumnWidth = 22  ' マーキングのためにA列を広げる
+        .Columns("D:F").ColumnWidth = 20
+        .Columns("G").ColumnWidth = 15
+        .Columns("H:I").ColumnWidth = 8
+        .Columns("J:L").ColumnWidth = 10
+        .Columns("M").ColumnWidth = 25
     End With
+    
+    ' 未請求シートを追加
+    Dim ws_unclaimed As Worksheet
+    On Error Resume Next
+    Set ws_unclaimed = wb.Worksheets("未請求一覧")
+    If ws_unclaimed Is Nothing Then
+        Set ws_unclaimed = wb.Worksheets.Add(After:=ws_sub)
+        ws_unclaimed.Name = "未請求一覧"
+        
+        ' 未請求シートの初期設定
+        With ws_unclaimed
+            .Range("A1").Value = "未請求レセプト一覧"
+            .Range("A1").Font.Size = 14
+            .Range("A1").Font.Bold = True
+            
+            ' 列ヘッダー
+            .Range("A2").Value = "患者氏名"
+            .Range("B2").Value = "調剤年月"
+            .Range("C2").Value = "医療機関"
+            .Range("D2").Value = "未請求理由"
+            .Range("E2").Value = "請求先"
+            .Range("F2").Value = "保険割合"
+            .Range("G2").Value = "請求点数"
+            .Range("H2").Value = "備考"
+            
+            ' 列ヘッダーのフォーマット
+            .Range("A2:H2").Font.Bold = True
+            .Range("A2:H2").Interior.Color = RGB(220, 230, 241)
+            .Range("A2:H2").Borders.LineStyle = xlContinuous
+            
+            ' 列幅の調整
+            .Columns("A:D").ColumnWidth = 15
+            .Columns("E").ColumnWidth = 10
+            .Columns("F:G").ColumnWidth = 12
+            .Columns("H").ColumnWidth = 25
+        End With
+    End If
+    On Error GoTo ErrorHandler
     
     SetTemplateInfo = True
     Exit Function
@@ -680,8 +805,6 @@ ErrorHandler:
     Debug.Print "Billing month: " & billing_month
     Debug.Print "Dispensing year: " & dispensing_year
     Debug.Print "Dispensing month: " & dispensing_month
-    Debug.Print "ws_main.Name" & ws_main.Name
-    Debug.Print "ws_sub.Name" & ws_sub.Name
     Debug.Print "=================================="
     
     error_response = MsgBox("テンプレート情報の設定中にエラーが発生しました。変更を保存しますか？" & vbCrLf & _
