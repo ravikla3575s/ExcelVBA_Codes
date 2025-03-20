@@ -451,7 +451,7 @@ Private Sub ClassifyMainSheetData(ws As Worksheet, csv_yymm As String, csv_file_
     
     For row = 2 To last_row
         dispensing_code = ws.Cells(row, 2).value
-        dispensing_ym = UtilityModule.ConvertToWesternDate(dispensing_code)
+        dispensing_ym = DateConversionModule.ConvertToWesternDate(dispensing_code)
         
         If csv_yymm <> "" And Right(dispensing_code, 4) <> csv_yymm Then
             row_data = Array(ws.Cells(row, 4).value, dispensing_ym, ws.Cells(row, 5).value, ws.Cells(row, 10).value)
