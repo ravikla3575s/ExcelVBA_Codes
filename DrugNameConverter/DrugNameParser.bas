@@ -7,6 +7,7 @@ Public Type DrugNameParts
     strength As String
     maker As String
     Package As String
+    PackageSize As String ' 追加：包装規格（0.5g、5mLなど）
 End Type
 
 ' 薬品名を解析して構造体に分解する関数
@@ -34,6 +35,9 @@ Public Function ParseDrugString(ByVal drugStr As String) As DrugNameParts
     
     ' 包装形態を抽出
     result.Package = ExtractPackageTypeSimple(tempStr)
+    
+    ' 包装規格を抽出
+    result.PackageSize = ExtractPackageSizeSimple(tempStr)
     
     ' 基本名を抽出（メーカー名と規格の前まで）
     result.BaseName = ExtractBaseNameSimple(tempStr, result.maker, result.strength, result.formType)
@@ -229,6 +233,130 @@ Public Function GetPackageType(ByVal text As String) As String
     End If
 End Function
 
+' 包装規格を抽出する関数（括弧内の数値+単位）
+Public Function ExtractPackageSizeSimple(ByVal text As String) As String
+    ' 括弧内のテキストを抽出
+    Dim bracketContent As String
+    bracketContent = ExtractBracketContent(text)
+    
+    ' 抽出されたテキストがなければ
+    If bracketContent = "" Then
+        ' スペースで区切られた部分から探す
+        Dim parts As Variant
+        parts = Split(text, " ")
+        Dim i As Long
+        For i = 0 To UBound(parts)
+            If IsPackageSize(parts(i)) Then
+                ExtractPackageSizeSimple = parts(i)
+                Exit Function
+            End If
+        Next i
+        
+        ExtractPackageSizeSimple = ""
+        Exit Function
+    End If
+    
+    ' 括弧内から数字+単位を抽出
+    Dim j As Long, k As Long
+    Dim numStart As Long
+    Dim inNumber As Boolean
+    Dim result As String
+    Dim units As Variant
+    
+    units = Array("mg", "g", "ml", "mL", "μg", "包", "枚", "管", "錠")
+    inNumber = False
+    numStart = 0
+    result = ""
+    
+    For j = 1 To Len(bracketContent)
+        Dim c As String
+        c = Mid(bracketContent, j, 1)
+        
+        If IsNumeric(c) Or c = "." Then
+            If Not inNumber Then
+                inNumber = True
+                numStart = j
+            End If
+        ElseIf c = " " Or c = "/" And inNumber Then
+            ' スペースとスラッシュは許容
+        Else
+            If inNumber Then
+                ' 数字の後に単位があるか確認
+                For k = 0 To UBound(units)
+                    If j + Len(units(k)) - 1 <= Len(bracketContent) Then
+                        If LCase(Mid(bracketContent, j, Len(units(k)))) = LCase(units(k)) Then
+                            result = Mid(bracketContent, numStart, j - numStart + Len(units(k)))
+                            ExtractPackageSizeSimple = result
+                            Exit Function
+                        End If
+                    End If
+                Next k
+                
+                inNumber = False
+            End If
+        End If
+    Next j
+    
+    ExtractPackageSizeSimple = result
+End Function
+
+' 括弧内のテキストを抽出する関数
+Private Function ExtractBracketContent(ByVal text As String) As String
+    Dim startPos As Long
+    Dim endPos As Long
+    
+    startPos = InStr(1, text, "(")
+    If startPos = 0 Then startPos = InStr(1, text, "（")
+    
+    If startPos > 0 Then
+        endPos = InStr(startPos + 1, text, ")")
+        If endPos = 0 Then endPos = InStr(startPos + 1, text, "）")
+        
+        If endPos > startPos Then
+            ExtractBracketContent = Mid(text, startPos + 1, endPos - startPos - 1)
+        Else
+            ExtractBracketContent = ""
+        End If
+    Else
+        ExtractBracketContent = ""
+    End If
+End Function
+
+' 数字+単位が包装規格かどうかを判断する関数
+Private Function IsPackageSize(ByVal text As String) As Boolean
+    Dim units As Variant
+    units = Array("g", "mg", "ml", "mL", "μg", "包", "枚", "管", "錠")
+    
+    Dim hasDigit As Boolean
+    Dim hasUnit As Boolean
+    Dim i As Long
+    
+    ' 数字を含むか確認
+    hasDigit = False
+    For i = 1 To Len(text)
+        If IsNumeric(Mid(text, i, 1)) Then
+            hasDigit = True
+            Exit For
+        End If
+    Next i
+    
+    If Not hasDigit Then
+        IsPackageSize = False
+        Exit Function
+    End If
+    
+    ' 単位を含むか確認
+    hasUnit = False
+    For i = 0 To UBound(units)
+        If InStr(1, text, units(i), vbTextCompare) > 0 Then
+            hasUnit = True
+            Exit For
+        End If
+    Next i
+    
+    IsPackageSize = hasDigit And hasUnit
+End Function
+
 ' 薬品名の比較関数
 Public Function CompareDrugStringsWithRate(ByVal sourceStr As String, ByVal targetStr As String) As Double
     Dim sourceParts As DrugNameParts
@@ -239,7 +367,7 @@ Public Function CompareDrugStringsWithRate(ByVal sourceStr As String, ByVal targ
     sourceParts = ParseDrugString(sourceStr)
     targetParts = ParseDrugString(targetStr)
     
-    totalItems = 5 ' 基本名、剤型、規格、メーカー、包装の5項目
+    totalItems = 6 ' 基本名、剤型、規格、メーカー、包装、包装規格の6項目
     matchCount = 0
     
     ' 基本名の比較（完全一致）
@@ -263,12 +391,38 @@ Public Function CompareDrugStringsWithRate(ByVal sourceStr As String, ByVal targ
     End If
     
     ' 包装形態の比較（ある程度の揺れを許容）
-    ' ComparePackageType関数の代わりに単純な文字列比較を使用
     If StrComp(sourceParts.Package, targetParts.Package, vbTextCompare) = 0 Then
+        matchCount = matchCount + 1
+    End If
+    
+    ' 包装規格の比較
+    If ComparePackageSize(sourceParts.PackageSize, targetParts.PackageSize) Then
         matchCount = matchCount + 1
     End If
     
     ' 一致率を計算（百分率）
     CompareDrugStringsWithRate = (matchCount / totalItems) * 100
 End Function
+
+' 包装規格を比較する関数
+Public Function ComparePackageSize(ByVal size1 As String, ByVal size2 As String) As Boolean
+    ' 空文字列の場合は不一致とする
+    If size1 = "" Or size2 = "" Then
+        ComparePackageSize = False
+        Exit Function
+    End If
+    
+    ' 数値と単位を分離して比較
+    Dim num1 As Double, num2 As Double
+    Dim unit1 As String, unit2 As String
+    
+    ' 数値と単位を抽出
+    ExtractNumberAndUnit size1, num1, unit1
+    ExtractNumberAndUnit size2, num2, unit2
+    
+    ' 数値と単位が両方一致する場合のみTrue
+    ComparePackageSize = (num1 = num2) And (StrComp(unit1, unit2, vbTextCompare) = 0)
+End Function
+
+
 
