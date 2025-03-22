@@ -333,7 +333,7 @@ Private Function FindBestMatchWithPackage(ByVal searchDrug As String, ByRef targ
 End Function
 
 ' 7行目以降の医薬品名比較と転記を行う関数
-Public Sub CompareAndTransferDrugNamesFromRow7()
+Public Sub ProcessFromRow7()
     On Error GoTo ErrorHandler
     
     ' 初期設定
@@ -384,8 +384,9 @@ Public Sub CompareAndTransferDrugNamesFromRow7()
     
     ' 医薬品名の比較と転記（7行目から開始）
     Dim searchDrug As String, bestMatch As String
-    Dim processedCount As Long
+    Dim processedCount As Long, skippedCount As Long
     processedCount = 0
+    skippedCount = 0
     
     For i = 7 To lastRowSettings ' ここで7行目以降を処理
         searchDrug = settingsSheet.Cells(i, "B").Value
@@ -394,12 +395,13 @@ Public Sub CompareAndTransferDrugNamesFromRow7()
             ' 最適な一致を検索
             bestMatch = FindBestMatchingDrug(searchDrug, targetDrugs, packageType)
             
-            ' C列に転記
-            settingsSheet.Cells(i, "C").Value = bestMatch
-            
-            ' 処理数をカウント
+            ' 一致する結果があれば転記、なければスキップ
             If Len(bestMatch) > 0 Then
+                settingsSheet.Cells(i, "C").Value = bestMatch
                 processedCount = processedCount + 1
+            Else
+                ' 一致しない場合は何もしない（空文字で上書きしない）
+                skippedCount = skippedCount + 1
             End If
         End If
     Next i
@@ -407,7 +409,8 @@ Public Sub CompareAndTransferDrugNamesFromRow7()
 CleanExit:
     Application.ScreenUpdating = True
     MsgBox "処理が完了しました。" & vbCrLf & _
-           processedCount & "件の医薬品名が一致しました。", vbInformation
+           processedCount & "件の医薬品名が一致しました。" & vbCrLf & _
+           skippedCount & "件の医薬品名は一致するものが見つかりませんでした。", vbInformation
     Exit Sub
     
 ErrorHandler:
@@ -417,7 +420,7 @@ ErrorHandler:
 End Sub
 
 ' 最も一致する医薬品名を検索する関数
-Private Function FindBestMatchingDrug(ByVal searchDrug As String, ByRef targetDrugs() As String, ByVal packageType As String) As String
+Public Function FindBestMatchingDrug(ByVal searchDrug As String, ByRef targetDrugs() As String, ByVal packageType As String) As String
     Dim i As Long
     Dim bestMatchIndex As Long, bestMatchScore As Long, currentScore As Long
     
@@ -427,6 +430,10 @@ Private Function FindBestMatchingDrug(ByVal searchDrug As String, ByRef targetDr
     ' 検索対象をキーワードに分解
     Dim keywords As Variant
     keywords = ExtractKeywords(searchDrug)
+    
+    ' 検索対象の包装規格を抽出
+    Dim searchPackageSize As String
+    searchPackageSize = ExtractPackageSizeSimple(searchDrug)
     
     ' 包装形態の特別処理
     Dim skipPackageCheck As Boolean
@@ -443,12 +450,21 @@ Private Function FindBestMatchingDrug(ByVal searchDrug As String, ByRef targetDr
                 matchesPackage = True
             Else
                 ' 包装形態が一致するか確認
-                matchesPackage = CheckPackageTypeMatch(targetDrugs(i), packageType)
+                matchesPackage = CheckPackage(targetDrugs(i), packageType)
             End If
             
             If matchesPackage Then
+                ' 包装規格が一致するか確認
+                Dim matchesPackageSize As Boolean
+                matchesPackageSize = CheckPackageSize(targetDrugs(i), searchPackageSize)
+                
                 ' キーワード一致率を計算
-                currentScore = CalculateMatchingScore(keywords, targetDrugs(i))
+                currentScore = CalcMatchScore(keywords, targetDrugs(i))
+                
+                ' 包装規格が一致する場合はスコアを上げる
+                If matchesPackageSize And Len(searchPackageSize) > 0 Then
+                    currentScore = currentScore + 20
+                End If
                 
                 ' より高いスコアを記録
                 If currentScore > bestMatchScore Then
@@ -465,43 +481,6 @@ Private Function FindBestMatchingDrug(ByVal searchDrug As String, ByRef targetDr
     Else
         FindBestMatchingDrug = ""
     End If
-End Function
-
-' 包装形態が一致するかチェックする関数
-Private Function CheckPackageTypeMatch(ByVal drugName As String, ByVal packageType As String) As Boolean
-    ' 包装形態のバリエーションを定義
-    Dim packageVariations As Object
-    Set packageVariations = CreateObject("Scripting.Dictionary")
-    
-    ' 各包装形態の異表記を登録
-    packageVariations.Add "PTP", Array("PTP", "ＰＴＰ", "P.T.P.", "P.T.P")
-    packageVariations.Add "バラ", Array("バラ", "ﾊﾞﾗ", "BARA", "バラ錠")
-    packageVariations.Add "SP", Array("SP", "ＳＰ", "S.P")
-    packageVariations.Add "分包", Array("分包", "ぶんぽう", "分包品")
-    packageVariations.Add "包装小", Array("包装小", "小包装")
-    packageVariations.Add "調剤用", Array("調剤用", "調剤", "調剤用包装")
-    packageVariations.Add "PTP(患者用)", Array("PTP(患者用)", "患者用PTP", "患者用")
-    
-    ' 包装形態が定義されているか確認
-    If Not packageVariations.Exists(packageType) Then
-        ' 定義されていない場合は文字列完全一致で確認
-        CheckPackageTypeMatch = (InStr(1, drugName, packageType, vbTextCompare) > 0)
-        Exit Function
-    End If
-    
-    ' 各バリエーションで確認
-    Dim variations As Variant
-    variations = packageVariations(packageType)
-    
-    Dim j As Long
-    For j = LBound(variations) To UBound(variations)
-        If InStr(1, drugName, variations(j), vbTextCompare) > 0 Then
-            CheckPackageTypeMatch = True
-            Exit Function
-        End If
-    Next j
-    
-    CheckPackageTypeMatch = False
 End Function
 
 ' 医薬品名からキーワードを抽出する関数
@@ -537,7 +516,7 @@ Private Function ExtractKeywords(ByVal drugName As String) As Variant
 End Function
 
 ' キーワードの一致率を計算する関数
-Private Function CalculateMatchingScore(ByRef keywords As Variant, ByVal targetDrug As String) As Long
+Private Function CalcMatchScore(ByRef keywords As Variant, ByVal targetDrug As String) As Long
     Dim i As Long, matchCount As Long
     Dim lowerTargetDrug As String
     
@@ -553,60 +532,190 @@ Private Function CalculateMatchingScore(ByRef keywords As Variant, ByVal targetD
     
     ' 一致率を計算（百分率）
     If UBound(keywords) >= 0 Then
-        CalculateMatchingScore = (matchCount * 100) / (UBound(keywords) + 1)
+        CalcMatchScore = (matchCount * 100) / (UBound(keywords) + 1)
     Else
-        CalculateMatchingScore = 0
+        CalcMatchScore = 0
     End If
 End Function
 
-' Mac対応のための専用関数を追加
-Public Function FindBestMatchingDrugForMac(ByVal searchDrug As String, ByRef targetDrugs() As String, ByVal packageType As String) As String
+' 包装形態が一致するかチェックする関数（CreateObjectを使わないバージョン）
+Private Function CheckPackage(ByVal drugName As String, ByVal packageType As String) As Boolean
+    ' 包装形態のバリエーションを定義
+    Dim PTPVariations As Variant
+    Dim BulkVariations As Variant
+    Dim SPVariations As Variant
+    Dim DividedVariations As Variant
+    Dim SmallPackageVariations As Variant
+    Dim DispensingVariations As Variant
+    Dim PatientPTPVariations As Variant
+    
+    ' 各包装形態の異表記を配列で定義
+    PTPVariations = Array("PTP", "ＰＴＰ", "P.T.P.", "P.T.P")
+    BulkVariations = Array("バラ", "ﾊﾞﾗ", "BARA", "バラ錠")
+    SPVariations = Array("SP", "ＳＰ", "S.P")
+    DividedVariations = Array("分包", "ぶんぽう", "分包品")
+    SmallPackageVariations = Array("包装小", "小包装")
+    DispensingVariations = Array("調剤用", "調剤", "調剤用包装")
+    PatientPTPVariations = Array("PTP(患者用)", "患者用PTP", "患者用")
+    
+    ' 包装形態に応じた変数を選択
+    Dim variations As Variant
+    
+    Select Case packageType
+        Case "PTP"
+            variations = PTPVariations
+        Case "バラ"
+            variations = BulkVariations
+        Case "SP"
+            variations = SPVariations
+        Case "分包"
+            variations = DividedVariations
+        Case "包装小"
+            variations = SmallPackageVariations
+        Case "調剤用"
+            variations = DispensingVariations
+        Case "PTP(患者用)"
+            variations = PatientPTPVariations
+        Case Else
+            ' 定義されていない場合は文字列完全一致で確認
+            CheckPackage = (InStr(1, drugName, packageType, vbTextCompare) > 0)
+            Exit Function
+    End Select
+    
+    ' 各バリエーションで確認
+    Dim j As Long
+    For j = LBound(variations) To UBound(variations)
+        If InStr(1, drugName, variations(j), vbTextCompare) > 0 Then
+            CheckPackage = True
+            Exit Function
+        End If
+    Next j
+    
+    CheckPackage = False
+End Function
+
+' 包装規格が一致するかチェックする関数
+Private Function CheckPackageSize(ByVal drugName As String, ByVal packageSize As String) As Boolean
+    ' 包装規格が指定されていない場合は常にTrue
+    If Len(packageSize) = 0 Then
+        CheckPackageSize = True
+        Exit Function
+    End If
+    
+    ' ターゲットの包装規格を抽出
+    Dim targetPackageSize As String
+    targetPackageSize = ExtractPackageSizeSimple(drugName)
+    
+    ' 両方とも存在する場合のみ比較
+    If Len(targetPackageSize) > 0 And Len(packageSize) > 0 Then
+        CheckPackageSize = ComparePackageSize(targetPackageSize, packageSize)
+    Else
+        ' どちらかが存在しない場合は一致しない
+        CheckPackageSize = False
+    End If
+End Function
+
+' 14桁の医薬品コードに整形する関数
+Public Function FormatDrugCode(ByVal inputCode As String) As String
+    ' 数字以外の文字を削除
+    Dim cleanCode As String
     Dim i As Long
-    Dim bestMatchIndex As Long, bestMatchScore As Long, currentScore As Long
     
-    bestMatchIndex = -1
-    bestMatchScore = 0
-    
-    ' 検索対象をキーワードに分解
-    Dim keywords As Variant
-    keywords = StringUtils.ExtractKeywords(searchDrug)
-    
-    ' 包装形態の特別処理
-    Dim skipPackageCheck As Boolean
-    skipPackageCheck = (packageType = "(未定義)" Or packageType = "その他(なし)")
-    
-    ' 各比較対象に対して処理
-    For i = LBound(targetDrugs) To UBound(targetDrugs)
-        If Len(targetDrugs(i)) > 0 Then
-            ' 包装形態チェック
-            Dim matchesPackage As Boolean
-            
-            If skipPackageCheck Then
-                ' 未定義またはその他の場合は包装形態チェックをスキップ
-                matchesPackage = True
-            Else
-                ' 包装形態が一致するか確認
-                matchesPackage = StringUtils.CheckPackageTypeMatch(targetDrugs(i), packageType)
-            End If
-            
-            If matchesPackage Then
-                ' キーワード一致率を計算
-                currentScore = StringUtils.CalculateMatchingScore(keywords, targetDrugs(i))
-                
-                ' より高いスコアを記録
-                If currentScore > bestMatchScore Then
-                    bestMatchScore = currentScore
-                    bestMatchIndex = i
-                End If
-            End If
+    cleanCode = ""
+    For i = 1 To Len(inputCode)
+        If IsNumeric(Mid(inputCode, i, 1)) Then
+            cleanCode = cleanCode & Mid(inputCode, i, 1)
         End If
     Next i
     
-    ' 結果を返す（閾値以上のスコアの場合のみ）
-    If bestMatchScore >= 50 And bestMatchIndex >= 0 Then
-        FindBestMatchingDrugForMac = targetDrugs(bestMatchIndex)
+    ' 13桁以下の場合は左側に0を追加して14桁にする
+    If Len(cleanCode) < 14 Then
+        FormatDrugCode = String(14 - Len(cleanCode), "0") & cleanCode
     Else
-        FindBestMatchingDrugForMac = ""
+        ' 14桁以上の場合は最初の14桁を取得
+        FormatDrugCode = Left(cleanCode, 14)
     End If
 End Function
+
+' 医薬品コードを使用して医薬品名を検索する関数
+Public Function FindDrugNameByCode(ByVal drugCode As String) As String
+    On Error GoTo ErrorHandler
+    
+    ' 医薬品コードシートの参照を取得
+    Dim codeSheet As Worksheet
+    Set codeSheet = ThisWorkbook.Worksheets(3) ' 第3シートを医薬品コードシートとする
+    
+    ' 医薬品コードを整形
+    Dim formattedCode As String
+    formattedCode = FormatDrugCode(drugCode)
+    
+    ' 最終行の取得
+    Dim lastRow As Long
+    lastRow = codeSheet.Cells(codeSheet.Rows.Count, "F").End(xlUp).Row
+    
+    ' G列（医薬品コード）、H列（包装コード）、I列（販売コード）からコードを検索
+    Dim i As Long
+    For i = 2 To lastRow ' ヘッダー行をスキップ
+        If StrComp(formattedCode, FormatDrugCode(codeSheet.Cells(i, "G").Value), vbTextCompare) = 0 Or _
+           StrComp(formattedCode, FormatDrugCode(codeSheet.Cells(i, "H").Value), vbTextCompare) = 0 Or _
+           StrComp(formattedCode, FormatDrugCode(codeSheet.Cells(i, "I").Value), vbTextCompare) = 0 Then
+            ' コードが一致したらF列の医薬品名を返す
+            FindDrugNameByCode = codeSheet.Cells(i, "F").Value
+            Exit Function
+        End If
+    Next i
+    
+    ' 一致するコードが見つからなかった場合
+    FindDrugNameByCode = ""
+    Exit Function
+    
+ErrorHandler:
+    FindDrugNameByCode = ""
+End Function
+
+' 医薬品コードを元に設定シートの医薬品名を埋める関数
+' 注意: この関数は直接的には使用されなくなりましたが、互換性のために残しています
+Public Sub FillDrugNamesByCode()
+    On Error GoTo ErrorHandler
+    
+    Application.ScreenUpdating = False
+    
+    ' ワークシート参照の取得
+    Dim settingsSheet As Worksheet
+    Set settingsSheet = ThisWorkbook.Worksheets(1) ' 設定シート
+    
+    ' 最終行の取得
+    Dim lastRow As Long
+    lastRow = settingsSheet.Cells(settingsSheet.Rows.Count, "A").End(xlUp).Row
+    
+    ' A列のコードのみを整形
+    Dim i As Long, processedCount As Long, skippedCount As Long
+    processedCount = 0
+    skippedCount = 0
+    
+    For i = 7 To lastRow ' 7行目から開始
+        ' A列の値（医薬品コード）を取得
+        Dim drugCode As String
+        drugCode = settingsSheet.Cells(i, "A").Value
+        
+        If Len(drugCode) > 0 Then
+            ' コードを整形
+            settingsSheet.Cells(i, "A").Value = FormatDrugCode(drugCode)
+            processedCount = processedCount + 1
+        End If
+    Next i
+    
+CleanExit:
+    Application.ScreenUpdating = True
+    MsgBox "医薬品コードの整形処理が完了しました。" & vbCrLf & _
+           processedCount & "件の医薬品コードを整形しました。", vbInformation
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    MsgBox "エラーが発生しました: " & Err.Description, vbCritical
+    Resume CleanExit
+End Sub
+
+
 
